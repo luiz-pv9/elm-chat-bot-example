@@ -12862,7 +12862,7 @@ var _user$project$Bot$Recipe = function (a) {
 };
 var _user$project$Bot$User = {ctor: 'User'};
 var _user$project$Bot$Bot = {ctor: 'Bot'};
-var _user$project$Bot$buildMessageForRecipe = F2(
+var _user$project$Bot$buildMessageFromRecipe = F2(
 	function (profile, recipe) {
 		var _p5 = recipe.action;
 		switch (_p5.ctor) {
@@ -12917,7 +12917,7 @@ var _user$project$Bot$update = F2(
 			var message = function () {
 				var _p8 = msg;
 				if (_p8.ctor === 'Run') {
-					return A2(_user$project$Bot$buildMessageForRecipe, session.profile, recipe);
+					return A2(_user$project$Bot$buildMessageFromRecipe, session.profile, recipe);
 				} else {
 					return _elm_lang$core$Maybe$Nothing;
 				}

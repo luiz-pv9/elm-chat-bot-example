@@ -60,7 +60,7 @@ update msg session =
         message =
             case msg of
                 Run ->
-                    buildMessageForRecipe session.profile recipe
+                    buildMessageFromRecipe session.profile recipe
 
                 _ ->
                     Nothing
@@ -124,8 +124,8 @@ buildCmdForRecipe recipe =
             Cmd.none
 
 
-buildMessageForRecipe : Profile -> Recipe -> Maybe Message
-buildMessageForRecipe profile recipe =
+buildMessageFromRecipe : Profile -> Recipe -> Maybe Message
+buildMessageFromRecipe profile recipe =
     case recipe.action of
         SendText text ->
             Just
