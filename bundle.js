@@ -6262,6 +6262,10 @@ return {
 
 }();
 
+var _elm_lang$core$Process$kill = _elm_lang$core$Native_Scheduler.kill;
+var _elm_lang$core$Process$sleep = _elm_lang$core$Native_Scheduler.sleep;
+var _elm_lang$core$Process$spawn = _elm_lang$core$Native_Scheduler.spawn;
+
 var _elm_lang$core$Tuple$mapSecond = F2(
 	function (func, _p0) {
 		var _p1 = _p0;
@@ -12804,9 +12808,9 @@ var _user$project$Bot$Session = F3(
 	function (a, b, c) {
 		return {profile: a, messages: b, blueprint: c};
 	});
-var _user$project$Bot$Message = F2(
-	function (a, b) {
-		return {body: a, sentBy: b};
+var _user$project$Bot$Message = F3(
+	function (a, b, c) {
+		return {body: a, sentBy: b, options: c};
 	});
 var _user$project$Bot$Recipe = function (a) {
 	return {action: a};
@@ -12821,19 +12825,40 @@ var _user$project$Bot$buildMessageForRecipe = F2(
 				return _elm_lang$core$Maybe$Just(
 					{
 						body: A2(_user$project$Bot$interpolateProfile, profile, _p3._0),
-						sentBy: _user$project$Bot$Bot
+						sentBy: _user$project$Bot$Bot,
+						options: {ctor: '[]'}
 					});
 			case 'SendOptions':
-				return _elm_lang$core$Maybe$Nothing;
+				return _elm_lang$core$Maybe$Just(
+					{
+						body: '',
+						sentBy: _user$project$Bot$Bot,
+						options: _elm_lang$core$Dict$keys(_p3._0)
+					});
 			case 'Wait':
 				return _elm_lang$core$Maybe$Nothing;
 			default:
 				return _elm_lang$core$Maybe$Nothing;
 		}
 	});
+var _user$project$Bot$Input = {ctor: 'Input'};
+var _user$project$Bot$Run = {ctor: 'Run'};
+var _user$project$Bot$buildCmdForRecipe = function (recipe) {
+	var _p4 = recipe.action;
+	if (_p4.ctor === 'Wait') {
+		return A2(
+			_elm_lang$core$Task$perform,
+			function (_p5) {
+				return _user$project$Bot$Run;
+			},
+			_elm_lang$core$Process$sleep(_p4._0));
+	} else {
+		return _elm_lang$core$Platform_Cmd$none;
+	}
+};
 var _user$project$Bot$End = {ctor: 'End'};
 var _user$project$Bot$endRecipe = {action: _user$project$Bot$End};
-var _user$project$Bot$update = function (session) {
+var _user$project$Bot$advance = function (session) {
 	var nextBlueprint = A2(
 		_elm_lang$core$Maybe$withDefault,
 		{ctor: '[]'},
@@ -12843,37 +12868,69 @@ var _user$project$Bot$update = function (session) {
 		_user$project$Bot$endRecipe,
 		_elm_lang$core$List$head(session.blueprint));
 	var message = A2(_user$project$Bot$buildMessageForRecipe, session.profile, recipe);
-	var _p4 = message;
-	if (_p4.ctor === 'Nothing') {
-		return _elm_lang$core$Native_Utils.update(
-			session,
-			{blueprint: nextBlueprint});
+	var cmd = _user$project$Bot$buildCmdForRecipe(recipe);
+	var _p6 = message;
+	if (_p6.ctor === 'Nothing') {
+		return {
+			ctor: '_Tuple2',
+			_0: _elm_lang$core$Native_Utils.update(
+				session,
+				{blueprint: nextBlueprint}),
+			_1: cmd
+		};
 	} else {
-		return _elm_lang$core$Native_Utils.update(
-			session,
-			{
-				messages: A2(
-					_elm_lang$core$List$append,
-					session.messages,
-					{
-						ctor: '::',
-						_0: _p4._0,
-						_1: {ctor: '[]'}
-					}),
-				blueprint: nextBlueprint
-			});
+		return {
+			ctor: '_Tuple2',
+			_0: _elm_lang$core$Native_Utils.update(
+				session,
+				{
+					messages: A2(
+						_elm_lang$core$List$append,
+						session.messages,
+						{
+							ctor: '::',
+							_0: _p6._0,
+							_1: {ctor: '[]'}
+						}),
+					blueprint: nextBlueprint
+				}),
+			_1: cmd
+		};
 	}
 };
-var _user$project$Bot$waitsForInput = function (session) {
+var _user$project$Bot$oneMoreAdvance = F2(
+	function (session, cmd) {
+		var _p7 = _user$project$Bot$advance(session);
+		var nextSession = _p7._0;
+		var nextCmd = _p7._1;
+		return {
+			ctor: '_Tuple2',
+			_0: nextSession,
+			_1: _elm_lang$core$Platform_Cmd$batch(
+				{
+					ctor: '::',
+					_0: cmd,
+					_1: {
+						ctor: '::',
+						_0: nextCmd,
+						_1: {ctor: '[]'}
+					}
+				})
+		};
+	});
+var _user$project$Bot$waits = function (session) {
 	var recipe = A2(
 		_elm_lang$core$Maybe$withDefault,
 		_user$project$Bot$endRecipe,
 		_elm_lang$core$List$head(session.blueprint));
-	var _p5 = recipe.action;
-	if (_p5.ctor === 'SendOptions') {
-		return true;
-	} else {
-		return false;
+	var _p8 = recipe.action;
+	switch (_p8.ctor) {
+		case 'SendOptions':
+			return true;
+		case 'Wait':
+			return true;
+		default:
+			return false;
 	}
 };
 var _user$project$Bot$end = function (blueprint) {
@@ -12905,7 +12962,7 @@ var _user$project$Bot$wait = F2(
 var _user$project$Bot$SendOptions = function (a) {
 	return {ctor: 'SendOptions', _0: a};
 };
-var _user$project$Bot$sendOptions = F2(
+var _user$project$Bot$options = F2(
 	function (options, blueprint) {
 		return A2(
 			_elm_lang$core$List$append,
@@ -12922,7 +12979,7 @@ var _user$project$Bot$sendOptions = F2(
 var _user$project$Bot$SendText = function (a) {
 	return {ctor: 'SendText', _0: a};
 };
-var _user$project$Bot$sendText = F2(
+var _user$project$Bot$send = F2(
 	function (msg, blueprint) {
 		return A2(
 			_elm_lang$core$List$append,
@@ -12935,6 +12992,51 @@ var _user$project$Bot$sendText = F2(
 				_1: {ctor: '[]'}
 			});
 	});
+var _user$project$Bot$Ends = {ctor: 'Ends'};
+var _user$project$Bot$Continues = {ctor: 'Continues'};
+var _user$project$Bot$WaitsForCmd = {ctor: 'WaitsForCmd'};
+var _user$project$Bot$WaitsForInput = {ctor: 'WaitsForInput'};
+var _user$project$Bot$getInteractivity = function (session) {
+	var recipe = A2(
+		_elm_lang$core$Maybe$withDefault,
+		_user$project$Bot$endRecipe,
+		_elm_lang$core$List$head(session.blueprint));
+	var _p9 = recipe.action;
+	switch (_p9.ctor) {
+		case 'Wait':
+			return _user$project$Bot$WaitsForCmd;
+		case 'SendOptions':
+			return _user$project$Bot$WaitsForInput;
+		case 'End':
+			return _user$project$Bot$Ends;
+		default:
+			return _user$project$Bot$Continues;
+	}
+};
+var _user$project$Bot$update = F2(
+	function (msg, session) {
+		update:
+		while (true) {
+			var _p10 = _user$project$Bot$advance(session);
+			var nextSession = _p10._0;
+			var cmd = _p10._1;
+			var _p11 = _user$project$Bot$getInteractivity(nextSession);
+			switch (_p11.ctor) {
+				case 'WaitsForInput':
+					return A2(_user$project$Bot$oneMoreAdvance, nextSession, cmd);
+				case 'WaitsForCmd':
+					return A2(_user$project$Bot$oneMoreAdvance, nextSession, cmd);
+				case 'Continues':
+					var _v7 = msg,
+						_v8 = nextSession;
+					msg = _v7;
+					session = _v8;
+					continue update;
+				default:
+					return {ctor: '_Tuple2', _0: nextSession, _1: cmd};
+			}
+		}
+	});
 
 var _user$project$Main$onEnter = function (msg) {
 	var isEnter = function (code) {
@@ -12945,14 +13047,42 @@ var _user$project$Main$onEnter = function (msg) {
 		'keydown',
 		A2(_elm_lang$core$Json_Decode$andThen, isEnter, _elm_lang$html$Html_Events$keyCode));
 };
+var _user$project$Main$viewChatMessageOptions = function (message) {
+	var viewOption = function (option) {
+		return A2(
+			_elm_lang$html$Html$button,
+			{
+				ctor: '::',
+				_0: _elm_lang$html$Html_Attributes$class('bg-blue text-white py-1 px-2 rounded-full mr-2 font-bold'),
+				_1: {ctor: '[]'}
+			},
+			{
+				ctor: '::',
+				_0: _elm_lang$html$Html$text(option),
+				_1: {ctor: '[]'}
+			});
+	};
+	return A2(_elm_lang$core$List$map, viewOption, message.options);
+};
 var _user$project$Main$viewChatMessage = function (message) {
 	return A2(
 		_elm_lang$html$Html$div,
-		{ctor: '[]'},
 		{
 			ctor: '::',
-			_0: _elm_lang$html$Html$text(message.body),
+			_0: _elm_lang$html$Html_Attributes$class('block rounded-r-full p-2 bg-blue-lightest mb-2'),
 			_1: {ctor: '[]'}
+		},
+		{
+			ctor: '::',
+			_0: A2(
+				_elm_lang$html$Html$div,
+				{ctor: '[]'},
+				_user$project$Main$viewChatMessageOptions(message)),
+			_1: {
+				ctor: '::',
+				_0: _elm_lang$html$Html$text(message.body),
+				_1: {ctor: '[]'}
+			}
 		});
 };
 var _user$project$Main$viewIdentificationFooter = A2(
@@ -13089,11 +13219,11 @@ var _user$project$Main$viewIdentificationLabel = F3(
 			});
 	});
 var _user$project$Main$functionalChoice = _user$project$Bot$end(
-	A2(_user$project$Bot$sendText, 'Immutability is great, isn\'t it?', _user$project$Bot$blueprint));
+	A2(_user$project$Bot$send, 'Immutability is great, isn\'t it?', _user$project$Bot$blueprint));
 var _user$project$Main$oopChoice = _user$project$Bot$end(
-	A2(_user$project$Bot$sendText, 'I too like sending messages to objects.', _user$project$Bot$blueprint));
+	A2(_user$project$Bot$send, 'I too like sending messages to objects.', _user$project$Bot$blueprint));
 var _user$project$Main$bot = A2(
-	_user$project$Bot$sendOptions,
+	_user$project$Bot$options,
 	{
 		ctor: '::',
 		_0: {ctor: '_Tuple2', _0: 'Object Oriented', _1: _user$project$Main$oopChoice},
@@ -13104,25 +13234,12 @@ var _user$project$Main$bot = A2(
 		}
 	},
 	A2(
-		_user$project$Bot$sendText,
-		'What programming paradigm do your prefer?',
+		_user$project$Bot$send,
+		'What paradigm do your prefer?',
 		A2(
-			_user$project$Bot$wait,
-			1 * _elm_lang$core$Time$second,
-			A2(_user$project$Bot$sendText, 'Hello, %name%, I hope you\'re doing fine.', _user$project$Bot$blueprint))));
-var _user$project$Main$initialSession = _user$project$Bot$update(
-	A2(
-		_user$project$Bot$sessionWithProfile,
-		_user$project$Main$bot,
-		{
-			ctor: '::',
-			_0: {ctor: '_Tuple2', _0: 'name', _1: 'Luiz Paulo'},
-			_1: {
-				ctor: '::',
-				_0: {ctor: '_Tuple2', _0: 'email', _1: 'luiz@onaboutcode.com'},
-				_1: {ctor: '[]'}
-			}
-		}));
+			_user$project$Bot$send,
+			'Let\'s talk about programming.',
+			A2(_user$project$Bot$send, 'Hello, %name%, I hope you\'re doing fine.', _user$project$Bot$blueprint))));
 var _user$project$Main$buildSessionFromModel = function (model) {
 	return A2(
 		_user$project$Bot$sessionWithProfile,
@@ -13146,23 +13263,73 @@ var _user$project$Main$AskForName = {ctor: 'AskForName'};
 var _user$project$Main$ChatPage = function (a) {
 	return {ctor: 'ChatPage', _0: a};
 };
-var _user$project$Main$emptyModel = {
-	name: '',
-	email: '',
-	currentPage: _user$project$Main$ChatPage(_user$project$Main$initialSession),
-	validationMessage: _elm_lang$core$Maybe$Nothing,
-	message: ''
-};
-var _user$project$Main$init = function (_p1) {
-	return {ctor: '_Tuple2', _0: _user$project$Main$emptyModel, _1: _elm_lang$core$Platform_Cmd$none};
+var _user$project$Main$emptyModel = function (session) {
+	return {
+		name: '',
+		email: '',
+		currentPage: _user$project$Main$ChatPage(session),
+		validationMessage: _elm_lang$core$Maybe$Nothing,
+		message: ''
+	};
 };
 var _user$project$Main$IdentificationPage = function (a) {
 	return {ctor: 'IdentificationPage', _0: a};
 };
+var _user$project$Main$BotMsg = function (a) {
+	return {ctor: 'BotMsg', _0: a};
+};
+var _user$project$Main$init = function (_p1) {
+	var _p2 = A2(
+		_user$project$Bot$update,
+		_user$project$Bot$Run,
+		A2(
+			_user$project$Bot$sessionWithProfile,
+			_user$project$Main$bot,
+			{
+				ctor: '::',
+				_0: {ctor: '_Tuple2', _0: 'name', _1: 'Luiz Paulo'},
+				_1: {
+					ctor: '::',
+					_0: {ctor: '_Tuple2', _0: 'email', _1: 'luiz@onaboutcode.com'},
+					_1: {ctor: '[]'}
+				}
+			}));
+	var session = _p2._0;
+	var cmd = _p2._1;
+	return {
+		ctor: '_Tuple2',
+		_0: _user$project$Main$emptyModel(session),
+		_1: A2(_elm_lang$core$Platform_Cmd$map, _user$project$Main$BotMsg, cmd)
+	};
+};
+var _user$project$Main$updateBotSession = F3(
+	function (msg, session, model) {
+		var _p3 = A2(_user$project$Bot$update, msg, session);
+		var nextSession = _p3._0;
+		var cmd = _p3._1;
+		return {
+			ctor: '_Tuple2',
+			_0: _elm_lang$core$Native_Utils.update(
+				model,
+				{
+					currentPage: _user$project$Main$ChatPage(nextSession)
+				}),
+			_1: A2(_elm_lang$core$Platform_Cmd$map, _user$project$Main$BotMsg, cmd)
+		};
+	});
+var _user$project$Main$updateBotMsg = F2(
+	function (botMsg, model) {
+		var _p4 = model.currentPage;
+		if (_p4.ctor === 'ChatPage') {
+			return A3(_user$project$Main$updateBotSession, botMsg, _p4._0, model);
+		} else {
+			return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
+		}
+	});
 var _user$project$Main$update = F2(
 	function (msg, model) {
-		var _p2 = msg;
-		switch (_p2.ctor) {
+		var _p5 = msg;
+		switch (_p5.ctor) {
 			case 'NoOp':
 				return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
 			case 'SetName':
@@ -13170,7 +13337,7 @@ var _user$project$Main$update = F2(
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
 						model,
-						{name: _p2._0}),
+						{name: _p5._0}),
 					_1: _elm_lang$core$Platform_Cmd$none
 				};
 			case 'SetEmail':
@@ -13178,11 +13345,11 @@ var _user$project$Main$update = F2(
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
 						model,
-						{email: _p2._0}),
+						{email: _p5._0}),
 					_1: _elm_lang$core$Platform_Cmd$none
 				};
 			case 'AttemptToTransitionToEmail':
-				var _p3 = (_elm_lang$core$Native_Utils.cmp(
+				var _p6 = (_elm_lang$core$Native_Utils.cmp(
 					_elm_lang$core$String$length(model.name),
 					0) > 0) ? {
 					ctor: '_Tuple2',
@@ -13193,8 +13360,8 @@ var _user$project$Main$update = F2(
 					_0: _elm_lang$core$Maybe$Just('Please fill in your name'),
 					_1: _user$project$Main$IdentificationPage(_user$project$Main$AskForName)
 				};
-				var validation = _p3._0;
-				var nextPage = _p3._1;
+				var validation = _p6._0;
+				var nextPage = _p6._1;
 				return {
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
@@ -13203,7 +13370,7 @@ var _user$project$Main$update = F2(
 					_1: _elm_lang$core$Platform_Cmd$none
 				};
 			case 'AttemptToTransitionToChat':
-				var _p4 = (_elm_lang$core$Native_Utils.cmp(
+				var _p7 = (_elm_lang$core$Native_Utils.cmp(
 					_elm_lang$core$String$length(model.email),
 					0) > 0) ? {
 					ctor: '_Tuple2',
@@ -13215,8 +13382,8 @@ var _user$project$Main$update = F2(
 					_0: _elm_lang$core$Maybe$Just('Please fill in your email'),
 					_1: _user$project$Main$IdentificationPage(_user$project$Main$AskForEmail)
 				};
-				var validation = _p4._0;
-				var nextPage = _p4._1;
+				var validation = _p7._0;
+				var nextPage = _p7._1;
 				return {
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
@@ -13229,10 +13396,10 @@ var _user$project$Main$update = F2(
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
 						model,
-						{message: _p2._0}),
+						{message: _p5._0}),
 					_1: _elm_lang$core$Platform_Cmd$none
 				};
-			default:
+			case 'SendMessage':
 				return {
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
@@ -13240,6 +13407,8 @@ var _user$project$Main$update = F2(
 						{message: ''}),
 					_1: _elm_lang$core$Platform_Cmd$none
 				};
+			default:
+				return A2(_user$project$Main$updateBotMsg, _p5._0, model);
 		}
 	});
 var _user$project$Main$SendMessage = {ctor: 'SendMessage'};
@@ -13483,19 +13652,19 @@ var _user$project$Main$viewIdentificationAskForName = F2(
 	});
 var _user$project$Main$viewIdentification = F2(
 	function (step, model) {
-		var _p5 = step;
-		if (_p5.ctor === 'AskForName') {
+		var _p8 = step;
+		if (_p8.ctor === 'AskForName') {
 			return A2(_user$project$Main$viewIdentificationAskForName, model.name, model.validationMessage);
 		} else {
 			return A2(_user$project$Main$viewIdentificationAskForEmail, model.email, model.validationMessage);
 		}
 	});
 var _user$project$Main$view = function (model) {
-	var _p6 = model.currentPage;
-	if (_p6.ctor === 'IdentificationPage') {
-		return A2(_user$project$Main$viewIdentification, _p6._0, model);
+	var _p9 = model.currentPage;
+	if (_p9.ctor === 'IdentificationPage') {
+		return A2(_user$project$Main$viewIdentification, _p9._0, model);
 	} else {
-		return A2(_user$project$Main$viewChat, _p6._0, model);
+		return A2(_user$project$Main$viewChat, _p9._0, model);
 	}
 };
 var _user$project$Main$main = _elm_lang$html$Html$programWithFlags(
@@ -13514,7 +13683,7 @@ var _user$project$Main$NoOp = {ctor: 'NoOp'};
 var Elm = {};
 Elm['Main'] = Elm['Main'] || {};
 if (typeof _user$project$Main$main !== 'undefined') {
-    _user$project$Main$main(Elm['Main'], 'Main', {"types":{"unions":{"Main.Msg":{"args":[],"tags":{"AttemptToTransitionToChat":[],"SendMessage":[],"AttemptToTransitionToEmail":[],"SetName":["String"],"NoOp":[],"SetEmail":["String"],"SetMessage":["String"]}}},"aliases":{},"message":"Main.Msg"},"versions":{"elm":"0.18.0"}});
+    _user$project$Main$main(Elm['Main'], 'Main', {"types":{"unions":{"Bot.Msg":{"args":[],"tags":{"Input":[],"Run":[]}},"Main.Msg":{"args":[],"tags":{"AttemptToTransitionToChat":[],"SendMessage":[],"AttemptToTransitionToEmail":[],"SetName":["String"],"BotMsg":["Bot.Msg"],"NoOp":[],"SetEmail":["String"],"SetMessage":["String"]}}},"aliases":{},"message":"Main.Msg"},"versions":{"elm":"0.18.0"}});
 }
 
 if (typeof define === "function" && define['amd'])

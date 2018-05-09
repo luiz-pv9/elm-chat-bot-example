@@ -11,10 +11,12 @@ import Bot
 bot : Bot.Blueprint
 bot =
     Bot.blueprint
-        |> Bot.sendText "Hello, %name%, I hope you're doing fine."
-        |> Bot.wait (1 * Time.second)
-        |> Bot.sendText "What programming paradigm do your prefer?"
-        |> Bot.sendOptions
+        |> Bot.send "Hello, %name%, I hope you're doing fine."
+        -- |> Bot.wait (2 * Time.second)
+        |> Bot.send "Let's talk about programming."
+        -- |> Bot.wait (2 * Time.second)
+        |> Bot.send "What paradigm do your prefer?"
+        |> Bot.options
             [ ( "Object Oriented", oopChoice )
             , ( "Functional", functionalChoice )
             ]
@@ -23,14 +25,14 @@ bot =
 oopChoice : Bot.Blueprint
 oopChoice =
     Bot.blueprint
-        |> Bot.sendText "I too like sending messages to objects."
+        |> Bot.send "I too like sending messages to objects."
         |> Bot.end
 
 
 functionalChoice : Bot.Blueprint
 functionalChoice =
     Bot.blueprint
-        |> Bot.sendText "Immutability is great, isn't it?"
+        |> Bot.send "Immutability is great, isn't it?"
         |> Bot.end
 
 
@@ -61,24 +63,24 @@ type Msg
     | AttemptToTransitionToChat
     | SetMessage String
     | SendMessage
+    | BotMsg Bot.Msg
 
 
 init : () -> ( Model, Cmd Msg )
 init _ =
-    ( emptyModel, Cmd.none )
+    let
+        ( session, cmd ) =
+            Bot.sessionWithProfile bot [ ( "name", "Luiz Paulo" ), ( "email", "luiz@onaboutcode.com" ) ]
+                |> Bot.update Bot.Run
+    in
+        ( emptyModel session, Cmd.map BotMsg cmd )
 
 
-initialSession : Bot.Session
-initialSession =
-    Bot.sessionWithProfile bot [ ( "name", "Luiz Paulo" ), ( "email", "luiz@onaboutcode.com" ) ]
-        |> Bot.update
-
-
-emptyModel : Model
-emptyModel =
+emptyModel : Bot.Session -> Model
+emptyModel session =
     { name = ""
     , email = ""
-    , currentPage = ChatPage initialSession
+    , currentPage = ChatPage session
     , validationMessage = Nothing
     , message = ""
     }
@@ -121,6 +123,28 @@ update msg model =
 
         SendMessage ->
             ( { model | message = "" }, Cmd.none )
+
+        BotMsg subMsg ->
+            updateBotMsg subMsg model
+
+
+updateBotMsg : Bot.Msg -> Model -> ( Model, Cmd Msg )
+updateBotMsg botMsg model =
+    case model.currentPage of
+        ChatPage session ->
+            updateBotSession botMsg session model
+
+        _ ->
+            ( model, Cmd.none )
+
+
+updateBotSession : Bot.Msg -> Bot.Session -> Model -> ( Model, Cmd Msg )
+updateBotSession msg session model =
+    let
+        ( nextSession, cmd ) =
+            Bot.update msg session
+    in
+        ( { model | currentPage = ChatPage nextSession }, Cmd.map BotMsg cmd )
 
 
 buildSessionFromModel : Model -> Bot.Session
@@ -251,7 +275,19 @@ viewChat session model =
 
 viewChatMessage : Bot.Message -> Html Msg
 viewChatMessage message =
-    div [] [ text message.body ]
+    div [ class "block rounded-r-full p-2 bg-blue-lightest mb-2" ]
+        [ div [] (viewChatMessageOptions message)
+        , text message.body
+        ]
+
+
+viewChatMessageOptions : Bot.Message -> List (Html Msg)
+viewChatMessageOptions message =
+    let
+        viewOption option =
+            button [ class "bg-blue text-white py-1 px-2 rounded-full mr-2 font-bold" ] [ text option ]
+    in
+        List.map viewOption message.options
 
 
 onEnter : Msg -> Attribute Msg
