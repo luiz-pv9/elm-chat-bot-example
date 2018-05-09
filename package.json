@@ -1,0 +1,12 @@
+{
+    "name": "elm-chat-bot-example",
+    "version": "0.1.0",
+    "description": "example of a chat bot implemented in the Elm programming language",
+    "scripts": {
+        "watch": "chokidar '**/*.elm' -c 'elm make Main.elm --output bundle.js --debug' --initial"
+    },
+    "devDependencies": {
+        "chokidar-cli": "^1.2.0",
+        "elm": "^0.18.0"
+    }
+}

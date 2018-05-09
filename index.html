@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html class="h-full">
+<head>
+    <title>Chat bot</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="font-sans h-full bg-grey-lighter">
+    <div class="h-full flex items-center justify-center">
+        <div id="app" class="bg-white shadow-lg rounded-lg" style="width: 450px; height: 300px;"></div>
+    </div>
+
+    <script src="./bundle.js"></script>
+    <script>
+        let app = document.querySelector('#app')
+        Elm.Main.embed(app, null /* no flags for now */)
+    </script>
+</body>
+</html>
