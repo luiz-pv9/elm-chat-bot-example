@@ -12,9 +12,9 @@ bot : Bot.Blueprint
 bot =
     Bot.blueprint
         |> Bot.send "Hello, %name%, I hope you're doing fine."
-        -- |> Bot.wait (2 * Time.second)
+        |> Bot.wait (1 * Time.second)
         |> Bot.send "Let's talk about programming."
-        -- |> Bot.wait (2 * Time.second)
+        |> Bot.wait (1 * Time.second)
         |> Bot.send "What paradigm do your prefer?"
         |> Bot.options
             [ ( "Object Oriented", oopChoice )
@@ -285,7 +285,11 @@ viewChatMessageOptions : Bot.Message -> List (Html Msg)
 viewChatMessageOptions message =
     let
         viewOption option =
-            button [ class "bg-blue text-white py-1 px-2 rounded-full mr-2 font-bold" ] [ text option ]
+            button
+                [ class "bg-blue text-white text-sm py-1 px-2 rounded-full mr-2 font-bold"
+                , onClick (BotMsg (Bot.Input option))
+                ]
+                [ text option ]
     in
         List.map viewOption message.options
 
