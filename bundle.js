@@ -12772,7 +12772,6 @@ var _elm_lang$html$Html_Events$Options = F2(
 		return {stopPropagation: a, preventDefault: b};
 	});
 
-var _user$project$Bot$blueprint = {ctor: '[]'};
 var _user$project$Bot$interpolateProfile = F2(
 	function (profile, msg) {
 		return A3(
@@ -12814,36 +12813,48 @@ var _user$project$Bot$shouldWait = F2(
 				} else {
 					return true;
 				}
+			case 'Continue':
+				return false;
 			default:
 				return true;
 		}
 	});
-var _user$project$Bot$advanceSession = F3(
-	function (msg, recipe, session) {
-		var _p4 = {ctor: '_Tuple2', _0: msg, _1: recipe.action};
-		if ((_p4._0.ctor === 'Input') && (_p4._1.ctor === 'SendOptions')) {
-			return _elm_lang$core$Native_Utils.update(
-				session,
-				{
-					blueprint: A2(
-						_elm_lang$core$Maybe$withDefault,
-						session.blueprint,
-						A2(_elm_lang$core$Dict$get, _p4._0._0, _p4._1._0))
-				});
-		} else {
-			return _elm_lang$core$Native_Utils.update(
-				session,
-				{
-					blueprint: A2(
-						_elm_lang$core$Maybe$withDefault,
-						{ctor: '[]'},
-						_elm_lang$core$List$tail(session.blueprint))
-				});
-		}
+var _user$project$Bot$searchNestedBotsById = F2(
+	function (botId, blueprint) {
+		var nestedBlueprints = A2(
+			_elm_lang$core$List$filter,
+			function (blueprint) {
+				if (_elm_lang$core$Native_Utils.eq(blueprint.id, botId)) {
+					return true;
+				} else {
+					var _p4 = A2(_user$project$Bot$searchNestedBotsById, botId, blueprint);
+					if (_p4.ctor === 'Nothing') {
+						return false;
+					} else {
+						return true;
+					}
+				}
+			},
+			A2(
+				_elm_lang$core$List$concatMap,
+				function (recipe) {
+					var _p5 = recipe.action;
+					if (_p5.ctor === 'SendOptions') {
+						return _elm_lang$core$Dict$values(_p5._0);
+					} else {
+						return {ctor: '[]'};
+					}
+				},
+				blueprint.recipes));
+		return _elm_lang$core$List$head(nestedBlueprints);
 	});
-var _user$project$Bot$Session = F4(
-	function (a, b, c, d) {
-		return {profile: a, messages: b, blueprint: c, inputState: d};
+var _user$project$Bot$searchBotById = F2(
+	function (botId, blueprint) {
+		return _elm_lang$core$Native_Utils.eq(blueprint.id, botId) ? _elm_lang$core$Maybe$Just(blueprint) : A2(_user$project$Bot$searchNestedBotsById, botId, blueprint);
+	});
+var _user$project$Bot$Session = F5(
+	function (a, b, c, d, e) {
+		return {profile: a, messages: b, blueprint: c, rootBlueprint: d, inputState: e};
 	});
 var _user$project$Bot$Message = F2(
 	function (a, b) {
@@ -12851,6 +12862,60 @@ var _user$project$Bot$Message = F2(
 	});
 var _user$project$Bot$Recipe = function (a) {
 	return {action: a};
+};
+var _user$project$Bot$Blueprint = F2(
+	function (a, b) {
+		return {id: a, recipes: b};
+	});
+var _user$project$Bot$advanceSession = F3(
+	function (msg, recipe, session) {
+		var _p6 = {ctor: '_Tuple2', _0: msg, _1: recipe.action};
+		_v4_2:
+		do {
+			switch (_p6._1.ctor) {
+				case 'SendOptions':
+					if (_p6._0.ctor === 'Input') {
+						return _elm_lang$core$Native_Utils.update(
+							session,
+							{
+								blueprint: A2(
+									_elm_lang$core$Maybe$withDefault,
+									session.blueprint,
+									A2(_elm_lang$core$Dict$get, _p6._0._0, _p6._1._0))
+							});
+					} else {
+						break _v4_2;
+					}
+				case 'Continue':
+					return _elm_lang$core$Native_Utils.update(
+						session,
+						{
+							blueprint: A2(
+								_elm_lang$core$Maybe$withDefault,
+								session.rootBlueprint,
+								A2(_user$project$Bot$searchBotById, _p6._1._0, session.rootBlueprint))
+						});
+				default:
+					break _v4_2;
+			}
+		} while(false);
+		return _elm_lang$core$Native_Utils.update(
+			session,
+			{
+				blueprint: A2(
+					_user$project$Bot$Blueprint,
+					session.blueprint.id,
+					A2(
+						_elm_lang$core$Maybe$withDefault,
+						{ctor: '[]'},
+						_elm_lang$core$List$tail(session.blueprint.recipes)))
+			});
+	});
+var _user$project$Bot$blueprint = function (botId) {
+	return A2(
+		_user$project$Bot$Blueprint,
+		botId,
+		{ctor: '[]'});
 };
 var _user$project$Bot$Ended = {ctor: 'Ended'};
 var _user$project$Bot$Options = function (a) {
@@ -12860,8 +12925,8 @@ var _user$project$Bot$TextInput = {ctor: 'TextInput'};
 var _user$project$Bot$Blocked = {ctor: 'Blocked'};
 var _user$project$Bot$updateInputState = F2(
 	function (recipe, session) {
-		var _p5 = recipe.action;
-		switch (_p5.ctor) {
+		var _p7 = recipe.action;
+		switch (_p7.ctor) {
 			case 'SendText':
 				return _elm_lang$core$Native_Utils.update(
 					session,
@@ -12871,9 +12936,13 @@ var _user$project$Bot$updateInputState = F2(
 					session,
 					{
 						inputState: _user$project$Bot$Options(
-							_elm_lang$core$Dict$keys(_p5._0))
+							_elm_lang$core$Dict$keys(_p7._0))
 					});
 			case 'Wait':
+				return _elm_lang$core$Native_Utils.update(
+					session,
+					{inputState: _user$project$Bot$Blocked});
+			case 'Continue':
 				return _elm_lang$core$Native_Utils.update(
 					session,
 					{inputState: _user$project$Bot$Blocked});
@@ -12889,6 +12958,7 @@ var _user$project$Bot$sessionWithProfile = F2(
 			profile: _elm_lang$core$Dict$fromList(attributes),
 			messages: {ctor: '[]'},
 			blueprint: blueprint,
+			rootBlueprint: blueprint,
 			inputState: _user$project$Bot$Blocked
 		};
 	});
@@ -12896,17 +12966,19 @@ var _user$project$Bot$User = {ctor: 'User'};
 var _user$project$Bot$Bot = {ctor: 'Bot'};
 var _user$project$Bot$buildMessageFromRecipe = F2(
 	function (profile, recipe) {
-		var _p6 = recipe.action;
-		switch (_p6.ctor) {
+		var _p8 = recipe.action;
+		switch (_p8.ctor) {
 			case 'SendText':
 				return _elm_lang$core$Maybe$Just(
 					{
-						body: A2(_user$project$Bot$interpolateProfile, profile, _p6._0),
+						body: A2(_user$project$Bot$interpolateProfile, profile, _p8._0),
 						sentBy: _user$project$Bot$Bot
 					});
 			case 'SendOptions':
 				return _elm_lang$core$Maybe$Nothing;
 			case 'Wait':
+				return _elm_lang$core$Maybe$Nothing;
+			case 'Continue':
 				return _elm_lang$core$Maybe$Nothing;
 			default:
 				return _elm_lang$core$Maybe$Nothing;
@@ -12917,14 +12989,14 @@ var _user$project$Bot$Input = function (a) {
 };
 var _user$project$Bot$DoneWaiting = {ctor: 'DoneWaiting'};
 var _user$project$Bot$buildCmdForRecipe = function (recipe) {
-	var _p7 = recipe.action;
-	if (_p7.ctor === 'Wait') {
+	var _p9 = recipe.action;
+	if (_p9.ctor === 'Wait') {
 		return A2(
 			_elm_lang$core$Task$perform,
-			function (_p8) {
+			function (_p10) {
 				return _user$project$Bot$DoneWaiting;
 			},
-			_elm_lang$core$Process$sleep(_p7._0));
+			_elm_lang$core$Process$sleep(_p9._0));
 	} else {
 		return _elm_lang$core$Platform_Cmd$none;
 	}
@@ -12939,18 +13011,19 @@ var _user$project$Bot$update = F2(
 			var recipe = A2(
 				_elm_lang$core$Maybe$withDefault,
 				_user$project$Bot$endRecipe,
-				_elm_lang$core$List$head(session.blueprint));
+				_elm_lang$core$List$head(session.blueprint.recipes));
+			var recipe2 = A2(_elm_lang$core$Debug$log, 'recipe', recipe);
 			var message = function () {
-				var _p9 = msg;
-				if (_p9.ctor === 'Run') {
+				var _p11 = msg;
+				if (_p11.ctor === 'Run') {
 					return A2(_user$project$Bot$buildMessageFromRecipe, session.profile, recipe);
 				} else {
 					return _elm_lang$core$Maybe$Nothing;
 				}
 			}();
 			var nextMessages = function () {
-				var _p10 = message;
-				if (_p10.ctor === 'Nothing') {
+				var _p12 = message;
+				if (_p12.ctor === 'Nothing') {
 					return session.messages;
 				} else {
 					return A2(
@@ -12958,7 +13031,7 @@ var _user$project$Bot$update = F2(
 						session.messages,
 						{
 							ctor: '::',
-							_0: _p10._0,
+							_0: _p12._0,
 							_1: {ctor: '[]'}
 						});
 				}
@@ -12976,22 +13049,26 @@ var _user$project$Bot$update = F2(
 					_1: _user$project$Bot$buildCmdForRecipe(recipe)
 				};
 			} else {
-				var _v8 = _user$project$Bot$Run,
-					_v9 = A3(_user$project$Bot$advanceSession, msg, recipe, nextSession);
-				msg = _v8;
-				session = _v9;
+				var _v10 = _user$project$Bot$Run,
+					_v11 = A3(_user$project$Bot$advanceSession, msg, recipe, nextSession);
+				msg = _v10;
+				session = _v11;
 				continue update;
 			}
 		}
 	});
 var _user$project$Bot$end = function (blueprint) {
-	return A2(
-		_elm_lang$core$List$append,
+	return _elm_lang$core$Native_Utils.update(
 		blueprint,
 		{
-			ctor: '::',
-			_0: _user$project$Bot$endRecipe,
-			_1: {ctor: '[]'}
+			recipes: A2(
+				_elm_lang$core$List$append,
+				blueprint.recipes,
+				{
+					ctor: '::',
+					_0: _user$project$Bot$endRecipe,
+					_1: {ctor: '[]'}
+				})
 		});
 };
 var _user$project$Bot$Wait = function (a) {
@@ -12999,15 +13076,19 @@ var _user$project$Bot$Wait = function (a) {
 };
 var _user$project$Bot$wait = F2(
 	function (seconds, blueprint) {
-		return A2(
-			_elm_lang$core$List$append,
+		return _elm_lang$core$Native_Utils.update(
 			blueprint,
 			{
-				ctor: '::',
-				_0: {
-					action: _user$project$Bot$Wait(seconds)
-				},
-				_1: {ctor: '[]'}
+				recipes: A2(
+					_elm_lang$core$List$append,
+					blueprint.recipes,
+					{
+						ctor: '::',
+						_0: {
+							action: _user$project$Bot$Wait(seconds)
+						},
+						_1: {ctor: '[]'}
+					})
 			});
 	});
 var _user$project$Bot$SendOptions = function (a) {
@@ -13015,16 +13096,40 @@ var _user$project$Bot$SendOptions = function (a) {
 };
 var _user$project$Bot$options = F2(
 	function (options, blueprint) {
-		return A2(
-			_elm_lang$core$List$append,
+		return _elm_lang$core$Native_Utils.update(
 			blueprint,
 			{
-				ctor: '::',
-				_0: {
-					action: _user$project$Bot$SendOptions(
-						_elm_lang$core$Dict$fromList(options))
-				},
-				_1: {ctor: '[]'}
+				recipes: A2(
+					_elm_lang$core$List$append,
+					blueprint.recipes,
+					{
+						ctor: '::',
+						_0: {
+							action: _user$project$Bot$SendOptions(
+								_elm_lang$core$Dict$fromList(options))
+						},
+						_1: {ctor: '[]'}
+					})
+			});
+	});
+var _user$project$Bot$Continue = function (a) {
+	return {ctor: 'Continue', _0: a};
+};
+var _user$project$Bot$continue = F2(
+	function (botId, blueprint) {
+		return _elm_lang$core$Native_Utils.update(
+			blueprint,
+			{
+				recipes: A2(
+					_elm_lang$core$List$append,
+					blueprint.recipes,
+					{
+						ctor: '::',
+						_0: {
+							action: _user$project$Bot$Continue(botId)
+						},
+						_1: {ctor: '[]'}
+					})
 			});
 	});
 var _user$project$Bot$SendText = function (a) {
@@ -13032,15 +13137,19 @@ var _user$project$Bot$SendText = function (a) {
 };
 var _user$project$Bot$send = F2(
 	function (msg, blueprint) {
-		return A2(
-			_elm_lang$core$List$append,
+		return _elm_lang$core$Native_Utils.update(
 			blueprint,
 			{
-				ctor: '::',
-				_0: {
-					action: _user$project$Bot$SendText(msg)
-				},
-				_1: {ctor: '[]'}
+				recipes: A2(
+					_elm_lang$core$List$append,
+					blueprint.recipes,
+					{
+						ctor: '::',
+						_0: {
+							action: _user$project$Bot$SendText(msg)
+						},
+						_1: {ctor: '[]'}
+					})
 			});
 	});
 
@@ -13201,10 +13310,21 @@ var _user$project$Main$viewIdentificationLabel = F3(
 			});
 	});
 var _user$project$Main$functionalChoice = _user$project$Bot$end(
-	A2(_user$project$Bot$send, 'Immutability is great, isn\'t it?', _user$project$Bot$blueprint));
-var _user$project$Main$oopChoice = _user$project$Bot$end(
-	A2(_user$project$Bot$send, 'I too like sending messages to objects.', _user$project$Bot$blueprint));
-var _user$project$Main$bot = A2(
+	A2(
+		_user$project$Bot$send,
+		'Immutability is great, isn\'t it?',
+		_user$project$Bot$blueprint('functionalChoice')));
+var _user$project$Main$oopChoice = A2(
+	_user$project$Bot$continue,
+	'root',
+	A2(
+		_user$project$Bot$wait,
+		1 * _elm_lang$core$Time$second,
+		A2(
+			_user$project$Bot$send,
+			'That\'s a gret choice, but let\'s try again.',
+			_user$project$Bot$blueprint('oopChoice'))));
+var _user$project$Main$root = A2(
 	_user$project$Bot$options,
 	{
 		ctor: '::',
@@ -13220,18 +13340,21 @@ var _user$project$Main$bot = A2(
 		'What paradigm do your prefer?',
 		A2(
 			_user$project$Bot$wait,
-			1 * _elm_lang$core$Time$second,
+			0 * _elm_lang$core$Time$second,
 			A2(
 				_user$project$Bot$send,
 				'Let\'s talk about programming.',
 				A2(
 					_user$project$Bot$wait,
-					1 * _elm_lang$core$Time$second,
-					A2(_user$project$Bot$send, 'Hello, %name%, I hope you\'re doing fine.', _user$project$Bot$blueprint))))));
+					0 * _elm_lang$core$Time$second,
+					A2(
+						_user$project$Bot$send,
+						'Hello, %name%, I hope you\'re doing fine.',
+						_user$project$Bot$blueprint('root')))))));
 var _user$project$Main$buildSessionFromModel = function (model) {
 	return A2(
 		_user$project$Bot$sessionWithProfile,
-		_user$project$Main$bot,
+		_user$project$Main$root,
 		{
 			ctor: '::',
 			_0: {ctor: '_Tuple2', _0: 'name', _1: model.name},
@@ -13272,7 +13395,7 @@ var _user$project$Main$init = function (_p1) {
 		_user$project$Bot$Run,
 		A2(
 			_user$project$Bot$sessionWithProfile,
-			_user$project$Main$bot,
+			_user$project$Main$root,
 			{
 				ctor: '::',
 				_0: {ctor: '_Tuple2', _0: 'name', _1: 'Luiz Paulo'},

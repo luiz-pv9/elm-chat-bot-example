@@ -8,13 +8,13 @@ import Time
 import Bot
 
 
-bot : Bot.Blueprint
-bot =
-    Bot.blueprint
+root : Bot.Blueprint
+root =
+    Bot.blueprint "root"
         |> Bot.send "Hello, %name%, I hope you're doing fine."
-        |> Bot.wait (1 * Time.second)
+        |> Bot.wait (0 * Time.second)
         |> Bot.send "Let's talk about programming."
-        |> Bot.wait (1 * Time.second)
+        |> Bot.wait (0 * Time.second)
         |> Bot.send "What paradigm do your prefer?"
         |> Bot.options
             [ ( "Object Oriented", oopChoice )
@@ -24,14 +24,15 @@ bot =
 
 oopChoice : Bot.Blueprint
 oopChoice =
-    Bot.blueprint
-        |> Bot.send "I too like sending messages to objects."
-        |> Bot.end
+    Bot.blueprint "oopChoice"
+        |> Bot.send "That's a gret choice, but let's try again."
+        |> Bot.wait (1 * Time.second)
+        |> Bot.continue "root"
 
 
 functionalChoice : Bot.Blueprint
 functionalChoice =
-    Bot.blueprint
+    Bot.blueprint "functionalChoice"
         |> Bot.send "Immutability is great, isn't it?"
         |> Bot.end
 
@@ -70,7 +71,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     let
         ( session, cmd ) =
-            Bot.sessionWithProfile bot [ ( "name", "Luiz Paulo" ), ( "email", "luiz@onaboutcode.com" ) ]
+            Bot.sessionWithProfile root [ ( "name", "Luiz Paulo" ), ( "email", "luiz@onaboutcode.com" ) ]
                 |> Bot.update Bot.Run
     in
         ( emptyModel session, Cmd.map BotMsg cmd )
@@ -149,7 +150,7 @@ updateBotSession msg session model =
 
 buildSessionFromModel : Model -> Bot.Session
 buildSessionFromModel model =
-    Bot.sessionWithProfile bot [ ( "name", model.name ), ( "email", model.email ) ]
+    Bot.sessionWithProfile root [ ( "name", model.name ), ( "email", model.email ) ]
 
 
 view : Model -> Html Msg

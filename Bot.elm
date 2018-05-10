@@ -21,6 +21,7 @@ type alias Session =
     { profile : Profile
     , messages : List Message
     , blueprint : Blueprint
+    , rootBlueprint : Blueprint
     , inputState : InputState
     }
 
@@ -44,6 +45,7 @@ type Msg
 
 type Action
     = SendText String
+    | Continue String
     | SendOptions (Dict String Blueprint)
     | Wait Float
     | End
@@ -54,15 +56,20 @@ type alias Recipe =
 
 
 type alias Blueprint =
-    List Recipe
+    { id : String
+    , recipes : List Recipe
+    }
 
 
 update : Msg -> Session -> ( Session, Cmd Msg )
 update msg session =
     let
         recipe =
-            List.head session.blueprint
+            List.head session.blueprint.recipes
                 |> Maybe.withDefault endRecipe
+
+        recipe2 =
+            Debug.log "recipe" recipe
 
         message =
             case msg of
@@ -102,6 +109,9 @@ updateInputState recipe session =
         Wait _ ->
             { session | inputState = Blocked }
 
+        Continue _ ->
+            { session | inputState = Blocked }
+
         End ->
             { session | inputState = Ended }
 
@@ -112,8 +122,49 @@ advanceSession msg recipe session =
         ( Input choice, SendOptions options ) ->
             { session | blueprint = Dict.get choice options |> Maybe.withDefault session.blueprint }
 
+        ( _, Continue botId ) ->
+            { session | blueprint = searchBotById botId session.rootBlueprint |> Maybe.withDefault session.rootBlueprint }
+
         ( _, _ ) ->
-            { session | blueprint = List.tail session.blueprint |> Maybe.withDefault [] }
+            { session | blueprint = Blueprint session.blueprint.id (List.tail session.blueprint.recipes |> Maybe.withDefault []) }
+
+
+searchBotById : String -> Blueprint -> Maybe Blueprint
+searchBotById botId blueprint =
+    if blueprint.id == botId then
+        Just blueprint
+    else
+        searchNestedBotsById botId blueprint
+
+
+searchNestedBotsById : String -> Blueprint -> Maybe Blueprint
+searchNestedBotsById botId blueprint =
+    let
+        nestedBlueprints =
+            List.concatMap
+                (\recipe ->
+                    case recipe.action of
+                        SendOptions options ->
+                            Dict.values options
+
+                        _ ->
+                            []
+                )
+                blueprint.recipes
+                |> List.filter
+                    (\blueprint ->
+                        if blueprint.id == botId then
+                            True
+                        else
+                            case searchNestedBotsById botId blueprint of
+                                Nothing ->
+                                    False
+
+                                Just blueprint ->
+                                    True
+                    )
+    in
+        List.head nestedBlueprints
 
 
 shouldWait : Msg -> Recipe -> Bool
@@ -133,6 +184,9 @@ shouldWait msg recipe =
 
         ( _, Wait _ ) ->
             True
+
+        ( _, Continue _ ) ->
+            False
 
         ( _, End ) ->
             True
@@ -160,7 +214,10 @@ buildMessageFromRecipe profile recipe =
         SendOptions options ->
             Nothing
 
-        Wait amount ->
+        Wait _ ->
+            Nothing
+
+        Continue _ ->
             Nothing
 
         End ->
@@ -182,33 +239,39 @@ sessionWithProfile blueprint attributes =
     { profile = (Dict.fromList attributes)
     , messages = []
     , blueprint = blueprint
+    , rootBlueprint = blueprint
     , inputState = Blocked
     }
 
 
-blueprint : Blueprint
-blueprint =
-    []
+blueprint : String -> Blueprint
+blueprint botId =
+    Blueprint botId []
 
 
 send : String -> Blueprint -> Blueprint
 send msg blueprint =
-    List.append blueprint [ { action = SendText msg } ]
+    { blueprint | recipes = List.append blueprint.recipes [ { action = SendText msg } ] }
 
 
 options : List ( String, Blueprint ) -> Blueprint -> Blueprint
 options options blueprint =
-    List.append blueprint [ { action = SendOptions (Dict.fromList options) } ]
+    { blueprint | recipes = List.append blueprint.recipes [ { action = SendOptions (Dict.fromList options) } ] }
 
 
 wait : Float -> Blueprint -> Blueprint
 wait seconds blueprint =
-    List.append blueprint [ { action = Wait seconds } ]
+    { blueprint | recipes = List.append blueprint.recipes [ { action = Wait seconds } ] }
+
+
+continue : String -> Blueprint -> Blueprint
+continue botId blueprint =
+    { blueprint | recipes = List.append blueprint.recipes [ { action = Continue botId } ] }
 
 
 end : Blueprint -> Blueprint
 end blueprint =
-    List.append blueprint [ endRecipe ]
+    { blueprint | recipes = List.append blueprint.recipes [ endRecipe ] }
 
 
 endRecipe : Recipe
