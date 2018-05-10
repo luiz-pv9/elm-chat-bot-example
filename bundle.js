@@ -12773,14 +12773,6 @@ var _elm_lang$html$Html_Events$Options = F2(
 	});
 
 var _user$project$Bot$blueprint = {ctor: '[]'};
-var _user$project$Bot$sessionWithProfile = F2(
-	function (blueprint, attributes) {
-		return {
-			profile: _elm_lang$core$Dict$fromList(attributes),
-			messages: {ctor: '[]'},
-			blueprint: blueprint
-		};
-	});
 var _user$project$Bot$interpolateProfile = F2(
 	function (profile, msg) {
 		return A3(
@@ -12849,37 +12841,71 @@ var _user$project$Bot$advanceSession = F3(
 				});
 		}
 	});
-var _user$project$Bot$Session = F3(
-	function (a, b, c) {
-		return {profile: a, messages: b, blueprint: c};
+var _user$project$Bot$Session = F4(
+	function (a, b, c, d) {
+		return {profile: a, messages: b, blueprint: c, inputState: d};
 	});
-var _user$project$Bot$Message = F3(
-	function (a, b, c) {
-		return {body: a, sentBy: b, options: c};
+var _user$project$Bot$Message = F2(
+	function (a, b) {
+		return {body: a, sentBy: b};
 	});
 var _user$project$Bot$Recipe = function (a) {
 	return {action: a};
 };
+var _user$project$Bot$Ended = {ctor: 'Ended'};
+var _user$project$Bot$Options = function (a) {
+	return {ctor: 'Options', _0: a};
+};
+var _user$project$Bot$TextInput = {ctor: 'TextInput'};
+var _user$project$Bot$Blocked = {ctor: 'Blocked'};
+var _user$project$Bot$updateInputState = F2(
+	function (recipe, session) {
+		var _p5 = recipe.action;
+		switch (_p5.ctor) {
+			case 'SendText':
+				return _elm_lang$core$Native_Utils.update(
+					session,
+					{inputState: _user$project$Bot$Blocked});
+			case 'SendOptions':
+				return _elm_lang$core$Native_Utils.update(
+					session,
+					{
+						inputState: _user$project$Bot$Options(
+							_elm_lang$core$Dict$keys(_p5._0))
+					});
+			case 'Wait':
+				return _elm_lang$core$Native_Utils.update(
+					session,
+					{inputState: _user$project$Bot$Blocked});
+			default:
+				return _elm_lang$core$Native_Utils.update(
+					session,
+					{inputState: _user$project$Bot$Ended});
+		}
+	});
+var _user$project$Bot$sessionWithProfile = F2(
+	function (blueprint, attributes) {
+		return {
+			profile: _elm_lang$core$Dict$fromList(attributes),
+			messages: {ctor: '[]'},
+			blueprint: blueprint,
+			inputState: _user$project$Bot$Blocked
+		};
+	});
 var _user$project$Bot$User = {ctor: 'User'};
 var _user$project$Bot$Bot = {ctor: 'Bot'};
 var _user$project$Bot$buildMessageFromRecipe = F2(
 	function (profile, recipe) {
-		var _p5 = recipe.action;
-		switch (_p5.ctor) {
+		var _p6 = recipe.action;
+		switch (_p6.ctor) {
 			case 'SendText':
 				return _elm_lang$core$Maybe$Just(
 					{
-						body: A2(_user$project$Bot$interpolateProfile, profile, _p5._0),
-						sentBy: _user$project$Bot$Bot,
-						options: {ctor: '[]'}
+						body: A2(_user$project$Bot$interpolateProfile, profile, _p6._0),
+						sentBy: _user$project$Bot$Bot
 					});
 			case 'SendOptions':
-				return _elm_lang$core$Maybe$Just(
-					{
-						body: '',
-						sentBy: _user$project$Bot$Bot,
-						options: _elm_lang$core$Dict$keys(_p5._0)
-					});
+				return _elm_lang$core$Maybe$Nothing;
 			case 'Wait':
 				return _elm_lang$core$Maybe$Nothing;
 			default:
@@ -12891,14 +12917,14 @@ var _user$project$Bot$Input = function (a) {
 };
 var _user$project$Bot$DoneWaiting = {ctor: 'DoneWaiting'};
 var _user$project$Bot$buildCmdForRecipe = function (recipe) {
-	var _p6 = recipe.action;
-	if (_p6.ctor === 'Wait') {
+	var _p7 = recipe.action;
+	if (_p7.ctor === 'Wait') {
 		return A2(
 			_elm_lang$core$Task$perform,
-			function (_p7) {
+			function (_p8) {
 				return _user$project$Bot$DoneWaiting;
 			},
-			_elm_lang$core$Process$sleep(_p6._0));
+			_elm_lang$core$Process$sleep(_p7._0));
 	} else {
 		return _elm_lang$core$Platform_Cmd$none;
 	}
@@ -12915,16 +12941,16 @@ var _user$project$Bot$update = F2(
 				_user$project$Bot$endRecipe,
 				_elm_lang$core$List$head(session.blueprint));
 			var message = function () {
-				var _p8 = msg;
-				if (_p8.ctor === 'Run') {
+				var _p9 = msg;
+				if (_p9.ctor === 'Run') {
 					return A2(_user$project$Bot$buildMessageFromRecipe, session.profile, recipe);
 				} else {
 					return _elm_lang$core$Maybe$Nothing;
 				}
 			}();
 			var nextMessages = function () {
-				var _p9 = message;
-				if (_p9.ctor === 'Nothing') {
+				var _p10 = message;
+				if (_p10.ctor === 'Nothing') {
 					return session.messages;
 				} else {
 					return A2(
@@ -12932,14 +12958,17 @@ var _user$project$Bot$update = F2(
 						session.messages,
 						{
 							ctor: '::',
-							_0: _p9._0,
+							_0: _p10._0,
 							_1: {ctor: '[]'}
 						});
 				}
 			}();
-			var nextSession = _elm_lang$core$Native_Utils.update(
-				session,
-				{messages: nextMessages});
+			var nextSession = A2(
+				_user$project$Bot$updateInputState,
+				recipe,
+				_elm_lang$core$Native_Utils.update(
+					session,
+					{messages: nextMessages}));
 			if (A2(_user$project$Bot$shouldWait, msg, recipe)) {
 				return {
 					ctor: '_Tuple2',
@@ -12947,10 +12976,10 @@ var _user$project$Bot$update = F2(
 					_1: _user$project$Bot$buildCmdForRecipe(recipe)
 				};
 			} else {
-				var _v7 = _user$project$Bot$Run,
-					_v8 = A3(_user$project$Bot$advanceSession, msg, recipe, nextSession);
-				msg = _v7;
-				session = _v8;
+				var _v8 = _user$project$Bot$Run,
+					_v9 = A3(_user$project$Bot$advanceSession, msg, recipe, nextSession);
+				msg = _v8;
+				session = _v9;
 				continue update;
 			}
 		}
@@ -13023,6 +13052,20 @@ var _user$project$Main$onEnter = function (msg) {
 		_elm_lang$html$Html_Events$on,
 		'keydown',
 		A2(_elm_lang$core$Json_Decode$andThen, isEnter, _elm_lang$html$Html_Events$keyCode));
+};
+var _user$project$Main$viewChatMessage = function (message) {
+	return A2(
+		_elm_lang$html$Html$div,
+		{
+			ctor: '::',
+			_0: _elm_lang$html$Html_Attributes$class('block rounded-r-full p-2 bg-blue-lightest mb-2'),
+			_1: {ctor: '[]'}
+		},
+		{
+			ctor: '::',
+			_0: _elm_lang$html$Html$text(message.body),
+			_1: {ctor: '[]'}
+		});
 };
 var _user$project$Main$viewIdentificationFooter = A2(
 	_elm_lang$html$Html$div,
@@ -13356,7 +13399,7 @@ var _user$project$Main$update = F2(
 				return A2(_user$project$Main$updateBotMsg, _p5._0, model);
 		}
 	});
-var _user$project$Main$viewChatMessageOptions = function (message) {
+var _user$project$Main$viewChatOptions = function (options) {
 	var viewOption = function (option) {
 		return A2(
 			_elm_lang$html$Html$button,
@@ -13377,33 +13420,66 @@ var _user$project$Main$viewChatMessageOptions = function (message) {
 				_1: {ctor: '[]'}
 			});
 	};
-	return A2(_elm_lang$core$List$map, viewOption, message.options);
-};
-var _user$project$Main$viewChatMessage = function (message) {
-	return A2(
-		_elm_lang$html$Html$div,
-		{
-			ctor: '::',
-			_0: _elm_lang$html$Html_Attributes$class('block rounded-r-full p-2 bg-blue-lightest mb-2'),
-			_1: {ctor: '[]'}
-		},
-		{
-			ctor: '::',
-			_0: A2(
-				_elm_lang$html$Html$div,
-				{ctor: '[]'},
-				_user$project$Main$viewChatMessageOptions(message)),
-			_1: {
-				ctor: '::',
-				_0: _elm_lang$html$Html$text(message.body),
-				_1: {ctor: '[]'}
-			}
-		});
+	return A2(_elm_lang$core$List$map, viewOption, options);
 };
 var _user$project$Main$SendMessage = {ctor: 'SendMessage'};
 var _user$project$Main$SetMessage = function (a) {
 	return {ctor: 'SetMessage', _0: a};
 };
+var _user$project$Main$viewChatInput = F2(
+	function (textMessage, state) {
+		var _p8 = state;
+		switch (_p8.ctor) {
+			case 'Blocked':
+				return A2(
+					_elm_lang$html$Html$div,
+					{ctor: '[]'},
+					{
+						ctor: '::',
+						_0: _elm_lang$html$Html$text('hang on'),
+						_1: {ctor: '[]'}
+					});
+			case 'TextInput':
+				return A2(
+					_elm_lang$html$Html$input,
+					{
+						ctor: '::',
+						_0: _elm_lang$html$Html_Events$onInput(_user$project$Main$SetMessage),
+						_1: {
+							ctor: '::',
+							_0: _user$project$Main$onEnter(_user$project$Main$SendMessage),
+							_1: {
+								ctor: '::',
+								_0: _elm_lang$html$Html_Attributes$class('border-2 rounded p-2 block w-full'),
+								_1: {
+									ctor: '::',
+									_0: _elm_lang$html$Html_Attributes$value(textMessage),
+									_1: {
+										ctor: '::',
+										_0: _elm_lang$html$Html_Attributes$placeholder('Hit enter to send'),
+										_1: {ctor: '[]'}
+									}
+								}
+							}
+						}
+					},
+					{ctor: '[]'});
+			case 'Options':
+				return A2(
+					_elm_lang$html$Html$div,
+					{ctor: '[]'},
+					_user$project$Main$viewChatOptions(_p8._0));
+			default:
+				return A2(
+					_elm_lang$html$Html$div,
+					{ctor: '[]'},
+					{
+						ctor: '::',
+						_0: _elm_lang$html$Html$text('Thanks for using this amazing bot'),
+						_1: {ctor: '[]'}
+					});
+		}
+	});
 var _user$project$Main$viewChat = F2(
 	function (session, model) {
 		return A2(
@@ -13421,30 +13497,7 @@ var _user$project$Main$viewChat = F2(
 					A2(_elm_lang$core$List$map, _user$project$Main$viewChatMessage, session.messages)),
 				_1: {
 					ctor: '::',
-					_0: A2(
-						_elm_lang$html$Html$input,
-						{
-							ctor: '::',
-							_0: _elm_lang$html$Html_Events$onInput(_user$project$Main$SetMessage),
-							_1: {
-								ctor: '::',
-								_0: _user$project$Main$onEnter(_user$project$Main$SendMessage),
-								_1: {
-									ctor: '::',
-									_0: _elm_lang$html$Html_Attributes$class('border-2 rounded p-2 block w-full'),
-									_1: {
-										ctor: '::',
-										_0: _elm_lang$html$Html_Attributes$value(model.message),
-										_1: {
-											ctor: '::',
-											_0: _elm_lang$html$Html_Attributes$placeholder('Hit enter to send'),
-											_1: {ctor: '[]'}
-										}
-									}
-								}
-							}
-						},
-						{ctor: '[]'}),
+					_0: A2(_user$project$Main$viewChatInput, model.message, session.inputState),
 					_1: {ctor: '[]'}
 				}
 			});
@@ -13641,19 +13694,19 @@ var _user$project$Main$viewIdentificationAskForName = F2(
 	});
 var _user$project$Main$viewIdentification = F2(
 	function (step, model) {
-		var _p8 = step;
-		if (_p8.ctor === 'AskForName') {
+		var _p9 = step;
+		if (_p9.ctor === 'AskForName') {
 			return A2(_user$project$Main$viewIdentificationAskForName, model.name, model.validationMessage);
 		} else {
 			return A2(_user$project$Main$viewIdentificationAskForEmail, model.email, model.validationMessage);
 		}
 	});
 var _user$project$Main$view = function (model) {
-	var _p9 = model.currentPage;
-	if (_p9.ctor === 'IdentificationPage') {
-		return A2(_user$project$Main$viewIdentification, _p9._0, model);
+	var _p10 = model.currentPage;
+	if (_p10.ctor === 'IdentificationPage') {
+		return A2(_user$project$Main$viewIdentification, _p10._0, model);
 	} else {
-		return A2(_user$project$Main$viewChat, _p9._0, model);
+		return A2(_user$project$Main$viewChat, _p10._0, model);
 	}
 };
 var _user$project$Main$main = _elm_lang$html$Html$programWithFlags(

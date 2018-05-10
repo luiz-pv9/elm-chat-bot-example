@@ -10,17 +10,24 @@ type alias Profile =
     Dict String String
 
 
+type InputState
+    = Blocked
+    | TextInput
+    | Options (List String)
+    | Ended
+
+
 type alias Session =
     { profile : Profile
     , messages : List Message
     , blueprint : Blueprint
+    , inputState : InputState
     }
 
 
 type alias Message =
     { body : String
     , sentBy : MessageSender
-    , options : List String
     }
 
 
@@ -75,11 +82,28 @@ update msg session =
 
         nextSession =
             { session | messages = nextMessages }
+                |> updateInputState recipe
     in
         if shouldWait msg recipe then
             ( nextSession, buildCmdForRecipe recipe )
         else
             update Run (advanceSession msg recipe nextSession)
+
+
+updateInputState : Recipe -> Session -> Session
+updateInputState recipe session =
+    case recipe.action of
+        SendText _ ->
+            { session | inputState = Blocked }
+
+        SendOptions options ->
+            { session | inputState = Options (Dict.keys options) }
+
+        Wait _ ->
+            { session | inputState = Blocked }
+
+        End ->
+            { session | inputState = Ended }
 
 
 advanceSession : Msg -> Recipe -> Session -> Session
@@ -131,15 +155,10 @@ buildMessageFromRecipe profile recipe =
             Just
                 { body = interpolateProfile profile text
                 , sentBy = Bot
-                , options = []
                 }
 
         SendOptions options ->
-            Just
-                { body = ""
-                , sentBy = Bot
-                , options = Dict.keys options
-                }
+            Nothing
 
         Wait amount ->
             Nothing
@@ -163,6 +182,7 @@ sessionWithProfile blueprint attributes =
     { profile = (Dict.fromList attributes)
     , messages = []
     , blueprint = blueprint
+    , inputState = Blocked
     }
 
 

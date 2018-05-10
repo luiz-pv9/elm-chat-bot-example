@@ -262,27 +262,40 @@ viewChat : Bot.Session -> Model -> Html Msg
 viewChat session model =
     div [ class "p-4" ]
         [ div [] (List.map viewChatMessage session.messages)
-        , input
-            [ onInput SetMessage
-            , onEnter SendMessage
-            , class "border-2 rounded p-2 block w-full"
-            , value model.message
-            , placeholder "Hit enter to send"
-            ]
-            []
+        , viewChatInput model.message session.inputState
         ]
 
 
 viewChatMessage : Bot.Message -> Html Msg
 viewChatMessage message =
-    div [ class "block rounded-r-full p-2 bg-blue-lightest mb-2" ]
-        [ div [] (viewChatMessageOptions message)
-        , text message.body
-        ]
+    div [ class "block rounded-r-full p-2 bg-blue-lightest mb-2" ] [ text message.body ]
 
 
-viewChatMessageOptions : Bot.Message -> List (Html Msg)
-viewChatMessageOptions message =
+viewChatInput : String -> Bot.InputState -> Html Msg
+viewChatInput textMessage state =
+    case state of
+        Bot.Blocked ->
+            div [] [ text "hang on" ]
+
+        Bot.TextInput ->
+            input
+                [ onInput SetMessage
+                , onEnter SendMessage
+                , class "border-2 rounded p-2 block w-full"
+                , value textMessage
+                , placeholder "Hit enter to send"
+                ]
+                []
+
+        Bot.Options options ->
+            div [] (viewChatOptions options)
+
+        Bot.Ended ->
+            div [] [ text "Thanks for using this amazing bot" ]
+
+
+viewChatOptions : List String -> List (Html Msg)
+viewChatOptions options =
     let
         viewOption option =
             button
@@ -291,7 +304,7 @@ viewChatMessageOptions message =
                 ]
                 [ text option ]
     in
-        List.map viewOption message.options
+        List.map viewOption options
 
 
 onEnter : Msg -> Attribute Msg
