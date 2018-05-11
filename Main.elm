@@ -1,4 +1,4 @@
-module Main exposing (..)
+port module Main exposing (..)
 
 import Html exposing (..)
 import Html.Attributes exposing (..)
@@ -15,6 +15,7 @@ root =
         |> Bot.wait (0 * Time.second)
         |> Bot.send "Let's talk about programming."
         |> Bot.wait (0 * Time.second)
+        |> Bot.label "choose_paradigm"
         |> Bot.send "What paradigm do your prefer?"
         |> Bot.options
             [ ( "Object Oriented", oopChoice )
@@ -27,7 +28,7 @@ oopChoice =
     Bot.blueprint "oopChoice"
         |> Bot.send "That's a gret choice, but let's try again."
         |> Bot.wait (1 * Time.second)
-        |> Bot.continue "root"
+        |> Bot.goTo "choose_paradigm"
 
 
 functionalChoice : Bot.Blueprint
@@ -81,7 +82,7 @@ emptyModel : Bot.Session -> Model
 emptyModel session =
     { name = ""
     , email = ""
-    , currentPage = ChatPage session
+    , currentPage = IdentificationPage AskForName
     , validationMessage = Nothing
     , message = ""
     }
@@ -111,13 +112,18 @@ update msg model =
 
         AttemptToTransitionToChat ->
             let
-                ( validation, nextPage ) =
+                ( validation, ( nextPage, cmd ) ) =
                     if String.length model.email > 0 then
-                        ( Nothing, ChatPage (buildSessionFromModel model) )
+                        ( Nothing, buildBotSessionFromModel model )
                     else
-                        ( Just "Please fill in your email", IdentificationPage AskForEmail )
+                        ( Just "Please fill in your email", ( IdentificationPage AskForEmail, Cmd.none ) )
             in
-                ( { model | currentPage = nextPage, validationMessage = validation }, Cmd.none )
+                ( { model
+                    | currentPage = nextPage
+                    , validationMessage = validation
+                  }
+                , cmd
+                )
 
         SetMessage message ->
             ( { model | message = message }, Cmd.none )
@@ -126,7 +132,11 @@ update msg model =
             ( { model | message = "" }, Cmd.none )
 
         BotMsg subMsg ->
-            updateBotMsg subMsg model
+            let
+                ( newModel, cmd ) =
+                    updateBotMsg subMsg model
+            in
+                ( newModel, Cmd.batch [ cmd, (scroll ()) ] )
 
 
 updateBotMsg : Bot.Msg -> Model -> ( Model, Cmd Msg )
@@ -148,9 +158,14 @@ updateBotSession msg session model =
         ( { model | currentPage = ChatPage nextSession }, Cmd.map BotMsg cmd )
 
 
-buildSessionFromModel : Model -> Bot.Session
-buildSessionFromModel model =
-    Bot.sessionWithProfile root [ ( "name", model.name ), ( "email", model.email ) ]
+buildBotSessionFromModel : Model -> ( Page, Cmd Msg )
+buildBotSessionFromModel model =
+    let
+        ( newSession, cmd ) =
+            Bot.sessionWithProfile root [ ( "name", model.name ), ( "email", model.email ) ]
+                |> Bot.update Bot.Run
+    in
+        ( ChatPage newSession, Cmd.map BotMsg cmd )
 
 
 view : Model -> Html Msg
@@ -262,14 +277,27 @@ viewIdentificationFooter =
 viewChat : Bot.Session -> Model -> Html Msg
 viewChat session model =
     div [ class "p-4" ]
-        [ div [] (List.map viewChatMessage session.messages)
+        [ div [] (List.map (viewChatMessage model.name) session.messages)
         , viewChatInput model.message session.inputState
         ]
 
 
-viewChatMessage : Bot.Message -> Html Msg
-viewChatMessage message =
-    div [ class "block rounded-r-full p-2 bg-blue-lightest mb-2" ] [ text message.body ]
+viewChatMessage : String -> Bot.Message -> Html Msg
+viewChatMessage name message =
+    case message.sentBy of
+        Bot.Bot ->
+            div [ class "inline-block rounded-r-lg py-2 pl-2 pr-4 bg-blue text-white mb-2" ]
+                [ span [ class "text-sm" ] [ text "Robot" ]
+                , div [] [ text message.body ]
+                ]
+
+        Bot.User ->
+            div [ class "text-right" ]
+                [ div [ class "inline-block rounded-l-lg py-2 pl-2 pr-4 bg-orange text-white mb-2" ]
+                    [ span [ class "text-sm" ] [ text name ]
+                    , div [] [ text message.body ]
+                    ]
+                ]
 
 
 viewChatInput : String -> Bot.InputState -> Html Msg
@@ -289,7 +317,7 @@ viewChatInput textMessage state =
                 []
 
         Bot.Options options ->
-            div [] (viewChatOptions options)
+            div [ class "text-center" ] (viewChatOptions options)
 
         Bot.Ended ->
             div [] [ text "Thanks for using this amazing bot" ]
@@ -300,7 +328,7 @@ viewChatOptions options =
     let
         viewOption option =
             button
-                [ class "bg-blue text-white text-sm py-1 px-2 rounded-full mr-2 font-bold"
+                [ class "bg-indigo text-white text-sm py-1 px-2 rounded-full mr-2 font-bold"
                 , onClick (BotMsg (Bot.Input option))
                 ]
                 [ text option ]
@@ -327,3 +355,6 @@ main =
         , view = view
         , subscriptions = (\model -> Sub.none)
         }
+
+
+port scroll : () -> Cmd msg

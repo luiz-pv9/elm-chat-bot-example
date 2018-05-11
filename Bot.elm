@@ -45,8 +45,9 @@ type Msg
 
 type Action
     = SendText String
-    | Continue String
+    | GoTo String
     | SendOptions (Dict String Blueprint)
+    | Label String
     | Wait Float
     | End
 
@@ -68,9 +69,6 @@ update msg session =
             List.head session.blueprint.recipes
                 |> Maybe.withDefault endRecipe
 
-        recipe2 =
-            Debug.log "recipe" recipe
-
         message =
             case msg of
                 Run ->
@@ -90,6 +88,7 @@ update msg session =
         nextSession =
             { session | messages = nextMessages }
                 |> updateInputState recipe
+                |> updateUserInput msg
     in
         if shouldWait msg recipe then
             ( nextSession, buildCmdForRecipe recipe )
@@ -109,11 +108,24 @@ updateInputState recipe session =
         Wait _ ->
             { session | inputState = Blocked }
 
-        Continue _ ->
+        Label _ ->
+            { session | inputState = Blocked }
+
+        GoTo _ ->
             { session | inputState = Blocked }
 
         End ->
             { session | inputState = Ended }
+
+
+updateUserInput : Msg -> Session -> Session
+updateUserInput msg session =
+    case msg of
+        Input body ->
+            { session | messages = List.append session.messages [ { sentBy = User, body = body } ] }
+
+        _ ->
+            session
 
 
 advanceSession : Msg -> Recipe -> Session -> Session
@@ -122,7 +134,7 @@ advanceSession msg recipe session =
         ( Input choice, SendOptions options ) ->
             { session | blueprint = Dict.get choice options |> Maybe.withDefault session.blueprint }
 
-        ( _, Continue botId ) ->
+        ( _, GoTo botId ) ->
             { session | blueprint = searchBotById botId session.rootBlueprint |> Maybe.withDefault session.rootBlueprint }
 
         ( _, _ ) ->
@@ -141,16 +153,20 @@ searchNestedBotsById : String -> Blueprint -> Maybe Blueprint
 searchNestedBotsById botId blueprint =
     let
         nestedBlueprints =
-            List.concatMap
-                (\recipe ->
+            List.indexedMap
+                (\index recipe ->
                     case recipe.action of
                         SendOptions options ->
                             Dict.values options
+
+                        Label botId ->
+                            [ { id = botId, recipes = List.drop index blueprint.recipes } ]
 
                         _ ->
                             []
                 )
                 blueprint.recipes
+                |> List.concat
                 |> List.filter
                     (\blueprint ->
                         if blueprint.id == botId then
@@ -185,7 +201,10 @@ shouldWait msg recipe =
         ( _, Wait _ ) ->
             True
 
-        ( _, Continue _ ) ->
+        ( _, Label _ ) ->
+            False
+
+        ( _, GoTo _ ) ->
             False
 
         ( _, End ) ->
@@ -217,7 +236,10 @@ buildMessageFromRecipe profile recipe =
         Wait _ ->
             Nothing
 
-        Continue _ ->
+        GoTo _ ->
+            Nothing
+
+        Label _ ->
             Nothing
 
         End ->
@@ -264,9 +286,14 @@ wait seconds blueprint =
     { blueprint | recipes = List.append blueprint.recipes [ { action = Wait seconds } ] }
 
 
-continue : String -> Blueprint -> Blueprint
-continue botId blueprint =
-    { blueprint | recipes = List.append blueprint.recipes [ { action = Continue botId } ] }
+goTo : String -> Blueprint -> Blueprint
+goTo botId blueprint =
+    { blueprint | recipes = List.append blueprint.recipes [ { action = GoTo botId } ] }
+
+
+label : String -> Blueprint -> Blueprint
+label botId blueprint =
+    { blueprint | recipes = List.append blueprint.recipes [ { action = Label botId } ] }
 
 
 end : Blueprint -> Blueprint

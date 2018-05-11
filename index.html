@@ -7,13 +7,19 @@
 </head>
 <body class="font-sans h-full bg-grey-lighter">
     <div class="h-full flex items-center justify-center">
-        <div id="app" class="bg-white shadow-lg rounded-lg" style="width: 450px; height: 300px;"></div>
+        <div id="app" class="bg-white shadow-lg rounded-lg" style="width: 450px; height: 300px; overflow-y: auto;"></div>
     </div>
 
     <script src="./bundle.js"></script>
     <script>
-        let app = document.querySelector('#app')
-        Elm.Main.embed(app, null /* no flags for now */)
+        var appElm = document.querySelector('#app')
+        var app = Elm.Main.embed(appElm, null)
+
+        app.ports.scroll.subscribe(function() {
+            setTimeout(function() {
+                appElm.scrollTop = appElm.scrollHeight
+            }, 50)
+        })
     </script>
 </body>
 </html>

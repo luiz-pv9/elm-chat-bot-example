@@ -12813,7 +12813,9 @@ var _user$project$Bot$shouldWait = F2(
 				} else {
 					return true;
 				}
-			case 'Continue':
+			case 'Label':
+				return false;
+			case 'GoTo':
 				return false;
 			default:
 				return true;
@@ -12835,17 +12837,29 @@ var _user$project$Bot$searchNestedBotsById = F2(
 					}
 				}
 			},
-			A2(
-				_elm_lang$core$List$concatMap,
-				function (recipe) {
-					var _p5 = recipe.action;
-					if (_p5.ctor === 'SendOptions') {
-						return _elm_lang$core$Dict$values(_p5._0);
-					} else {
-						return {ctor: '[]'};
-					}
-				},
-				blueprint.recipes));
+			_elm_lang$core$List$concat(
+				A2(
+					_elm_lang$core$List$indexedMap,
+					F2(
+						function (index, recipe) {
+							var _p5 = recipe.action;
+							switch (_p5.ctor) {
+								case 'SendOptions':
+									return _elm_lang$core$Dict$values(_p5._0);
+								case 'Label':
+									return {
+										ctor: '::',
+										_0: {
+											id: _p5._0,
+											recipes: A2(_elm_lang$core$List$drop, index, blueprint.recipes)
+										},
+										_1: {ctor: '[]'}
+									};
+								default:
+									return {ctor: '[]'};
+							}
+						}),
+					blueprint.recipes)));
 		return _elm_lang$core$List$head(nestedBlueprints);
 	});
 var _user$project$Bot$searchBotById = F2(
@@ -12886,7 +12900,7 @@ var _user$project$Bot$advanceSession = F3(
 					} else {
 						break _v4_2;
 					}
-				case 'Continue':
+				case 'GoTo':
 					return _elm_lang$core$Native_Utils.update(
 						session,
 						{
@@ -12942,7 +12956,11 @@ var _user$project$Bot$updateInputState = F2(
 				return _elm_lang$core$Native_Utils.update(
 					session,
 					{inputState: _user$project$Bot$Blocked});
-			case 'Continue':
+			case 'Label':
+				return _elm_lang$core$Native_Utils.update(
+					session,
+					{inputState: _user$project$Bot$Blocked});
+			case 'GoTo':
 				return _elm_lang$core$Native_Utils.update(
 					session,
 					{inputState: _user$project$Bot$Blocked});
@@ -12963,22 +12981,44 @@ var _user$project$Bot$sessionWithProfile = F2(
 		};
 	});
 var _user$project$Bot$User = {ctor: 'User'};
+var _user$project$Bot$updateUserInput = F2(
+	function (msg, session) {
+		var _p8 = msg;
+		if (_p8.ctor === 'Input') {
+			return _elm_lang$core$Native_Utils.update(
+				session,
+				{
+					messages: A2(
+						_elm_lang$core$List$append,
+						session.messages,
+						{
+							ctor: '::',
+							_0: {sentBy: _user$project$Bot$User, body: _p8._0},
+							_1: {ctor: '[]'}
+						})
+				});
+		} else {
+			return session;
+		}
+	});
 var _user$project$Bot$Bot = {ctor: 'Bot'};
 var _user$project$Bot$buildMessageFromRecipe = F2(
 	function (profile, recipe) {
-		var _p8 = recipe.action;
-		switch (_p8.ctor) {
+		var _p9 = recipe.action;
+		switch (_p9.ctor) {
 			case 'SendText':
 				return _elm_lang$core$Maybe$Just(
 					{
-						body: A2(_user$project$Bot$interpolateProfile, profile, _p8._0),
+						body: A2(_user$project$Bot$interpolateProfile, profile, _p9._0),
 						sentBy: _user$project$Bot$Bot
 					});
 			case 'SendOptions':
 				return _elm_lang$core$Maybe$Nothing;
 			case 'Wait':
 				return _elm_lang$core$Maybe$Nothing;
-			case 'Continue':
+			case 'GoTo':
+				return _elm_lang$core$Maybe$Nothing;
+			case 'Label':
 				return _elm_lang$core$Maybe$Nothing;
 			default:
 				return _elm_lang$core$Maybe$Nothing;
@@ -12989,14 +13029,14 @@ var _user$project$Bot$Input = function (a) {
 };
 var _user$project$Bot$DoneWaiting = {ctor: 'DoneWaiting'};
 var _user$project$Bot$buildCmdForRecipe = function (recipe) {
-	var _p9 = recipe.action;
-	if (_p9.ctor === 'Wait') {
+	var _p10 = recipe.action;
+	if (_p10.ctor === 'Wait') {
 		return A2(
 			_elm_lang$core$Task$perform,
-			function (_p10) {
+			function (_p11) {
 				return _user$project$Bot$DoneWaiting;
 			},
-			_elm_lang$core$Process$sleep(_p9._0));
+			_elm_lang$core$Process$sleep(_p10._0));
 	} else {
 		return _elm_lang$core$Platform_Cmd$none;
 	}
@@ -13012,18 +13052,17 @@ var _user$project$Bot$update = F2(
 				_elm_lang$core$Maybe$withDefault,
 				_user$project$Bot$endRecipe,
 				_elm_lang$core$List$head(session.blueprint.recipes));
-			var recipe2 = A2(_elm_lang$core$Debug$log, 'recipe', recipe);
 			var message = function () {
-				var _p11 = msg;
-				if (_p11.ctor === 'Run') {
+				var _p12 = msg;
+				if (_p12.ctor === 'Run') {
 					return A2(_user$project$Bot$buildMessageFromRecipe, session.profile, recipe);
 				} else {
 					return _elm_lang$core$Maybe$Nothing;
 				}
 			}();
 			var nextMessages = function () {
-				var _p12 = message;
-				if (_p12.ctor === 'Nothing') {
+				var _p13 = message;
+				if (_p13.ctor === 'Nothing') {
 					return session.messages;
 				} else {
 					return A2(
@@ -13031,17 +13070,20 @@ var _user$project$Bot$update = F2(
 						session.messages,
 						{
 							ctor: '::',
-							_0: _p12._0,
+							_0: _p13._0,
 							_1: {ctor: '[]'}
 						});
 				}
 			}();
 			var nextSession = A2(
-				_user$project$Bot$updateInputState,
-				recipe,
-				_elm_lang$core$Native_Utils.update(
-					session,
-					{messages: nextMessages}));
+				_user$project$Bot$updateUserInput,
+				msg,
+				A2(
+					_user$project$Bot$updateInputState,
+					recipe,
+					_elm_lang$core$Native_Utils.update(
+						session,
+						{messages: nextMessages})));
 			if (A2(_user$project$Bot$shouldWait, msg, recipe)) {
 				return {
 					ctor: '_Tuple2',
@@ -13049,10 +13091,10 @@ var _user$project$Bot$update = F2(
 					_1: _user$project$Bot$buildCmdForRecipe(recipe)
 				};
 			} else {
-				var _v10 = _user$project$Bot$Run,
-					_v11 = A3(_user$project$Bot$advanceSession, msg, recipe, nextSession);
-				msg = _v10;
-				session = _v11;
+				var _v11 = _user$project$Bot$Run,
+					_v12 = A3(_user$project$Bot$advanceSession, msg, recipe, nextSession);
+				msg = _v11;
+				session = _v12;
 				continue update;
 			}
 		}
@@ -13091,6 +13133,26 @@ var _user$project$Bot$wait = F2(
 					})
 			});
 	});
+var _user$project$Bot$Label = function (a) {
+	return {ctor: 'Label', _0: a};
+};
+var _user$project$Bot$label = F2(
+	function (botId, blueprint) {
+		return _elm_lang$core$Native_Utils.update(
+			blueprint,
+			{
+				recipes: A2(
+					_elm_lang$core$List$append,
+					blueprint.recipes,
+					{
+						ctor: '::',
+						_0: {
+							action: _user$project$Bot$Label(botId)
+						},
+						_1: {ctor: '[]'}
+					})
+			});
+	});
 var _user$project$Bot$SendOptions = function (a) {
 	return {ctor: 'SendOptions', _0: a};
 };
@@ -13112,10 +13174,10 @@ var _user$project$Bot$options = F2(
 					})
 			});
 	});
-var _user$project$Bot$Continue = function (a) {
-	return {ctor: 'Continue', _0: a};
+var _user$project$Bot$GoTo = function (a) {
+	return {ctor: 'GoTo', _0: a};
 };
-var _user$project$Bot$continue = F2(
+var _user$project$Bot$goTo = F2(
 	function (botId, blueprint) {
 		return _elm_lang$core$Native_Utils.update(
 			blueprint,
@@ -13126,7 +13188,7 @@ var _user$project$Bot$continue = F2(
 					{
 						ctor: '::',
 						_0: {
-							action: _user$project$Bot$Continue(botId)
+							action: _user$project$Bot$GoTo(botId)
 						},
 						_1: {ctor: '[]'}
 					})
@@ -13162,20 +13224,92 @@ var _user$project$Main$onEnter = function (msg) {
 		'keydown',
 		A2(_elm_lang$core$Json_Decode$andThen, isEnter, _elm_lang$html$Html_Events$keyCode));
 };
-var _user$project$Main$viewChatMessage = function (message) {
-	return A2(
-		_elm_lang$html$Html$div,
-		{
-			ctor: '::',
-			_0: _elm_lang$html$Html_Attributes$class('block rounded-r-full p-2 bg-blue-lightest mb-2'),
-			_1: {ctor: '[]'}
-		},
-		{
-			ctor: '::',
-			_0: _elm_lang$html$Html$text(message.body),
-			_1: {ctor: '[]'}
-		});
-};
+var _user$project$Main$viewChatMessage = F2(
+	function (name, message) {
+		var _p0 = message.sentBy;
+		if (_p0.ctor === 'Bot') {
+			return A2(
+				_elm_lang$html$Html$div,
+				{
+					ctor: '::',
+					_0: _elm_lang$html$Html_Attributes$class('inline-block rounded-r-lg py-2 pl-2 pr-4 bg-blue text-white mb-2'),
+					_1: {ctor: '[]'}
+				},
+				{
+					ctor: '::',
+					_0: A2(
+						_elm_lang$html$Html$span,
+						{
+							ctor: '::',
+							_0: _elm_lang$html$Html_Attributes$class('text-sm'),
+							_1: {ctor: '[]'}
+						},
+						{
+							ctor: '::',
+							_0: _elm_lang$html$Html$text('Robot'),
+							_1: {ctor: '[]'}
+						}),
+					_1: {
+						ctor: '::',
+						_0: A2(
+							_elm_lang$html$Html$div,
+							{ctor: '[]'},
+							{
+								ctor: '::',
+								_0: _elm_lang$html$Html$text(message.body),
+								_1: {ctor: '[]'}
+							}),
+						_1: {ctor: '[]'}
+					}
+				});
+		} else {
+			return A2(
+				_elm_lang$html$Html$div,
+				{
+					ctor: '::',
+					_0: _elm_lang$html$Html_Attributes$class('text-right'),
+					_1: {ctor: '[]'}
+				},
+				{
+					ctor: '::',
+					_0: A2(
+						_elm_lang$html$Html$div,
+						{
+							ctor: '::',
+							_0: _elm_lang$html$Html_Attributes$class('inline-block rounded-l-lg py-2 pl-2 pr-4 bg-orange text-white mb-2'),
+							_1: {ctor: '[]'}
+						},
+						{
+							ctor: '::',
+							_0: A2(
+								_elm_lang$html$Html$span,
+								{
+									ctor: '::',
+									_0: _elm_lang$html$Html_Attributes$class('text-sm'),
+									_1: {ctor: '[]'}
+								},
+								{
+									ctor: '::',
+									_0: _elm_lang$html$Html$text(name),
+									_1: {ctor: '[]'}
+								}),
+							_1: {
+								ctor: '::',
+								_0: A2(
+									_elm_lang$html$Html$div,
+									{ctor: '[]'},
+									{
+										ctor: '::',
+										_0: _elm_lang$html$Html$text(message.body),
+										_1: {ctor: '[]'}
+									}),
+								_1: {ctor: '[]'}
+							}
+						}),
+					_1: {ctor: '[]'}
+				});
+		}
+	});
 var _user$project$Main$viewIdentificationFooter = A2(
 	_elm_lang$html$Html$div,
 	{
@@ -13267,8 +13401,8 @@ var _user$project$Main$viewIdentificationHeader = A2(
 var _user$project$Main$viewIdentificationLabel = F3(
 	function (id, labelText, validation) {
 		var msg = function () {
-			var _p0 = validation;
-			if (_p0.ctor === 'Nothing') {
+			var _p1 = validation;
+			if (_p1.ctor === 'Nothing') {
 				return _elm_lang$html$Html$text('');
 			} else {
 				return A2(
@@ -13280,7 +13414,7 @@ var _user$project$Main$viewIdentificationLabel = F3(
 					},
 					{
 						ctor: '::',
-						_0: _elm_lang$html$Html$text(_p0._0),
+						_0: _elm_lang$html$Html$text(_p1._0),
 						_1: {ctor: '[]'}
 					});
 			}
@@ -13315,8 +13449,8 @@ var _user$project$Main$functionalChoice = _user$project$Bot$end(
 		'Immutability is great, isn\'t it?',
 		_user$project$Bot$blueprint('functionalChoice')));
 var _user$project$Main$oopChoice = A2(
-	_user$project$Bot$continue,
-	'root',
+	_user$project$Bot$goTo,
+	'choose_paradigm',
 	A2(
 		_user$project$Bot$wait,
 		1 * _elm_lang$core$Time$second,
@@ -13339,32 +13473,26 @@ var _user$project$Main$root = A2(
 		_user$project$Bot$send,
 		'What paradigm do your prefer?',
 		A2(
-			_user$project$Bot$wait,
-			0 * _elm_lang$core$Time$second,
+			_user$project$Bot$label,
+			'choose_paradigm',
 			A2(
-				_user$project$Bot$send,
-				'Let\'s talk about programming.',
+				_user$project$Bot$wait,
+				0 * _elm_lang$core$Time$second,
 				A2(
-					_user$project$Bot$wait,
-					0 * _elm_lang$core$Time$second,
+					_user$project$Bot$send,
+					'Let\'s talk about programming.',
 					A2(
-						_user$project$Bot$send,
-						'Hello, %name%, I hope you\'re doing fine.',
-						_user$project$Bot$blueprint('root')))))));
-var _user$project$Main$buildSessionFromModel = function (model) {
-	return A2(
-		_user$project$Bot$sessionWithProfile,
-		_user$project$Main$root,
-		{
-			ctor: '::',
-			_0: {ctor: '_Tuple2', _0: 'name', _1: model.name},
-			_1: {
-				ctor: '::',
-				_0: {ctor: '_Tuple2', _0: 'email', _1: model.email},
-				_1: {ctor: '[]'}
-			}
-		});
-};
+						_user$project$Bot$wait,
+						0 * _elm_lang$core$Time$second,
+						A2(
+							_user$project$Bot$send,
+							'Hello, %name%, I hope you\'re doing fine.',
+							_user$project$Bot$blueprint('root'))))))));
+var _user$project$Main$scroll = _elm_lang$core$Native_Platform.outgoingPort(
+	'scroll',
+	function (v) {
+		return null;
+	});
 var _user$project$Main$Model = F5(
 	function (a, b, c, d, e) {
 		return {name: a, email: b, currentPage: c, validationMessage: d, message: e};
@@ -13374,23 +13502,23 @@ var _user$project$Main$AskForName = {ctor: 'AskForName'};
 var _user$project$Main$ChatPage = function (a) {
 	return {ctor: 'ChatPage', _0: a};
 };
+var _user$project$Main$IdentificationPage = function (a) {
+	return {ctor: 'IdentificationPage', _0: a};
+};
 var _user$project$Main$emptyModel = function (session) {
 	return {
 		name: '',
 		email: '',
-		currentPage: _user$project$Main$ChatPage(session),
+		currentPage: _user$project$Main$IdentificationPage(_user$project$Main$AskForName),
 		validationMessage: _elm_lang$core$Maybe$Nothing,
 		message: ''
 	};
 };
-var _user$project$Main$IdentificationPage = function (a) {
-	return {ctor: 'IdentificationPage', _0: a};
-};
 var _user$project$Main$BotMsg = function (a) {
 	return {ctor: 'BotMsg', _0: a};
 };
-var _user$project$Main$init = function (_p1) {
-	var _p2 = A2(
+var _user$project$Main$init = function (_p2) {
+	var _p3 = A2(
 		_user$project$Bot$update,
 		_user$project$Bot$Run,
 		A2(
@@ -13405,8 +13533,8 @@ var _user$project$Main$init = function (_p1) {
 					_1: {ctor: '[]'}
 				}
 			}));
-	var session = _p2._0;
-	var cmd = _p2._1;
+	var session = _p3._0;
+	var cmd = _p3._1;
 	return {
 		ctor: '_Tuple2',
 		_0: _user$project$Main$emptyModel(session),
@@ -13415,9 +13543,9 @@ var _user$project$Main$init = function (_p1) {
 };
 var _user$project$Main$updateBotSession = F3(
 	function (msg, session, model) {
-		var _p3 = A2(_user$project$Bot$update, msg, session);
-		var nextSession = _p3._0;
-		var cmd = _p3._1;
+		var _p4 = A2(_user$project$Bot$update, msg, session);
+		var nextSession = _p4._0;
+		var cmd = _p4._1;
 		return {
 			ctor: '_Tuple2',
 			_0: _elm_lang$core$Native_Utils.update(
@@ -13430,17 +13558,41 @@ var _user$project$Main$updateBotSession = F3(
 	});
 var _user$project$Main$updateBotMsg = F2(
 	function (botMsg, model) {
-		var _p4 = model.currentPage;
-		if (_p4.ctor === 'ChatPage') {
-			return A3(_user$project$Main$updateBotSession, botMsg, _p4._0, model);
+		var _p5 = model.currentPage;
+		if (_p5.ctor === 'ChatPage') {
+			return A3(_user$project$Main$updateBotSession, botMsg, _p5._0, model);
 		} else {
 			return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
 		}
 	});
+var _user$project$Main$buildBotSessionFromModel = function (model) {
+	var _p6 = A2(
+		_user$project$Bot$update,
+		_user$project$Bot$Run,
+		A2(
+			_user$project$Bot$sessionWithProfile,
+			_user$project$Main$root,
+			{
+				ctor: '::',
+				_0: {ctor: '_Tuple2', _0: 'name', _1: model.name},
+				_1: {
+					ctor: '::',
+					_0: {ctor: '_Tuple2', _0: 'email', _1: model.email},
+					_1: {ctor: '[]'}
+				}
+			}));
+	var newSession = _p6._0;
+	var cmd = _p6._1;
+	return {
+		ctor: '_Tuple2',
+		_0: _user$project$Main$ChatPage(newSession),
+		_1: A2(_elm_lang$core$Platform_Cmd$map, _user$project$Main$BotMsg, cmd)
+	};
+};
 var _user$project$Main$update = F2(
 	function (msg, model) {
-		var _p5 = msg;
-		switch (_p5.ctor) {
+		var _p7 = msg;
+		switch (_p7.ctor) {
 			case 'NoOp':
 				return {ctor: '_Tuple2', _0: model, _1: _elm_lang$core$Platform_Cmd$none};
 			case 'SetName':
@@ -13448,7 +13600,7 @@ var _user$project$Main$update = F2(
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
 						model,
-						{name: _p5._0}),
+						{name: _p7._0}),
 					_1: _elm_lang$core$Platform_Cmd$none
 				};
 			case 'SetEmail':
@@ -13456,11 +13608,11 @@ var _user$project$Main$update = F2(
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
 						model,
-						{email: _p5._0}),
+						{email: _p7._0}),
 					_1: _elm_lang$core$Platform_Cmd$none
 				};
 			case 'AttemptToTransitionToEmail':
-				var _p6 = (_elm_lang$core$Native_Utils.cmp(
+				var _p8 = (_elm_lang$core$Native_Utils.cmp(
 					_elm_lang$core$String$length(model.name),
 					0) > 0) ? {
 					ctor: '_Tuple2',
@@ -13471,8 +13623,8 @@ var _user$project$Main$update = F2(
 					_0: _elm_lang$core$Maybe$Just('Please fill in your name'),
 					_1: _user$project$Main$IdentificationPage(_user$project$Main$AskForName)
 				};
-				var validation = _p6._0;
-				var nextPage = _p6._1;
+				var validation = _p8._0;
+				var nextPage = _p8._1;
 				return {
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
@@ -13481,33 +13633,37 @@ var _user$project$Main$update = F2(
 					_1: _elm_lang$core$Platform_Cmd$none
 				};
 			case 'AttemptToTransitionToChat':
-				var _p7 = (_elm_lang$core$Native_Utils.cmp(
+				var _p9 = (_elm_lang$core$Native_Utils.cmp(
 					_elm_lang$core$String$length(model.email),
 					0) > 0) ? {
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Maybe$Nothing,
-					_1: _user$project$Main$ChatPage(
-						_user$project$Main$buildSessionFromModel(model))
+					_1: _user$project$Main$buildBotSessionFromModel(model)
 				} : {
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Maybe$Just('Please fill in your email'),
-					_1: _user$project$Main$IdentificationPage(_user$project$Main$AskForEmail)
+					_1: {
+						ctor: '_Tuple2',
+						_0: _user$project$Main$IdentificationPage(_user$project$Main$AskForEmail),
+						_1: _elm_lang$core$Platform_Cmd$none
+					}
 				};
-				var validation = _p7._0;
-				var nextPage = _p7._1;
+				var validation = _p9._0;
+				var nextPage = _p9._1._0;
+				var cmd = _p9._1._1;
 				return {
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
 						model,
 						{currentPage: nextPage, validationMessage: validation}),
-					_1: _elm_lang$core$Platform_Cmd$none
+					_1: cmd
 				};
 			case 'SetMessage':
 				return {
 					ctor: '_Tuple2',
 					_0: _elm_lang$core$Native_Utils.update(
 						model,
-						{message: _p5._0}),
+						{message: _p7._0}),
 					_1: _elm_lang$core$Platform_Cmd$none
 				};
 			case 'SendMessage':
@@ -13519,7 +13675,24 @@ var _user$project$Main$update = F2(
 					_1: _elm_lang$core$Platform_Cmd$none
 				};
 			default:
-				return A2(_user$project$Main$updateBotMsg, _p5._0, model);
+				var _p10 = A2(_user$project$Main$updateBotMsg, _p7._0, model);
+				var newModel = _p10._0;
+				var cmd = _p10._1;
+				return {
+					ctor: '_Tuple2',
+					_0: newModel,
+					_1: _elm_lang$core$Platform_Cmd$batch(
+						{
+							ctor: '::',
+							_0: cmd,
+							_1: {
+								ctor: '::',
+								_0: _user$project$Main$scroll(
+									{ctor: '_Tuple0'}),
+								_1: {ctor: '[]'}
+							}
+						})
+				};
 		}
 	});
 var _user$project$Main$viewChatOptions = function (options) {
@@ -13528,7 +13701,7 @@ var _user$project$Main$viewChatOptions = function (options) {
 			_elm_lang$html$Html$button,
 			{
 				ctor: '::',
-				_0: _elm_lang$html$Html_Attributes$class('bg-blue text-white text-sm py-1 px-2 rounded-full mr-2 font-bold'),
+				_0: _elm_lang$html$Html_Attributes$class('bg-indigo text-white text-sm py-1 px-2 rounded-full mr-2 font-bold'),
 				_1: {
 					ctor: '::',
 					_0: _elm_lang$html$Html_Events$onClick(
@@ -13551,8 +13724,8 @@ var _user$project$Main$SetMessage = function (a) {
 };
 var _user$project$Main$viewChatInput = F2(
 	function (textMessage, state) {
-		var _p8 = state;
-		switch (_p8.ctor) {
+		var _p11 = state;
+		switch (_p11.ctor) {
 			case 'Blocked':
 				return A2(
 					_elm_lang$html$Html$div,
@@ -13590,8 +13763,12 @@ var _user$project$Main$viewChatInput = F2(
 			case 'Options':
 				return A2(
 					_elm_lang$html$Html$div,
-					{ctor: '[]'},
-					_user$project$Main$viewChatOptions(_p8._0));
+					{
+						ctor: '::',
+						_0: _elm_lang$html$Html_Attributes$class('text-center'),
+						_1: {ctor: '[]'}
+					},
+					_user$project$Main$viewChatOptions(_p11._0));
 			default:
 				return A2(
 					_elm_lang$html$Html$div,
@@ -13617,7 +13794,10 @@ var _user$project$Main$viewChat = F2(
 				_0: A2(
 					_elm_lang$html$Html$div,
 					{ctor: '[]'},
-					A2(_elm_lang$core$List$map, _user$project$Main$viewChatMessage, session.messages)),
+					A2(
+						_elm_lang$core$List$map,
+						_user$project$Main$viewChatMessage(model.name),
+						session.messages)),
 				_1: {
 					ctor: '::',
 					_0: A2(_user$project$Main$viewChatInput, model.message, session.inputState),
@@ -13817,19 +13997,19 @@ var _user$project$Main$viewIdentificationAskForName = F2(
 	});
 var _user$project$Main$viewIdentification = F2(
 	function (step, model) {
-		var _p9 = step;
-		if (_p9.ctor === 'AskForName') {
+		var _p12 = step;
+		if (_p12.ctor === 'AskForName') {
 			return A2(_user$project$Main$viewIdentificationAskForName, model.name, model.validationMessage);
 		} else {
 			return A2(_user$project$Main$viewIdentificationAskForEmail, model.email, model.validationMessage);
 		}
 	});
 var _user$project$Main$view = function (model) {
-	var _p10 = model.currentPage;
-	if (_p10.ctor === 'IdentificationPage') {
-		return A2(_user$project$Main$viewIdentification, _p10._0, model);
+	var _p13 = model.currentPage;
+	if (_p13.ctor === 'IdentificationPage') {
+		return A2(_user$project$Main$viewIdentification, _p13._0, model);
 	} else {
-		return A2(_user$project$Main$viewChat, _p10._0, model);
+		return A2(_user$project$Main$viewChat, _p13._0, model);
 	}
 };
 var _user$project$Main$main = _elm_lang$html$Html$programWithFlags(
