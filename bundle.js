@@ -12772,6 +12772,367 @@ var _elm_lang$html$Html_Events$Options = F2(
 		return {stopPropagation: a, preventDefault: b};
 	});
 
+var _elm_lang$http$Native_Http = function() {
+
+
+// ENCODING AND DECODING
+
+function encodeUri(string)
+{
+	return encodeURIComponent(string);
+}
+
+function decodeUri(string)
+{
+	try
+	{
+		return _elm_lang$core$Maybe$Just(decodeURIComponent(string));
+	}
+	catch(e)
+	{
+		return _elm_lang$core$Maybe$Nothing;
+	}
+}
+
+
+// SEND REQUEST
+
+function toTask(request, maybeProgress)
+{
+	return _elm_lang$core$Native_Scheduler.nativeBinding(function(callback)
+	{
+		var xhr = new XMLHttpRequest();
+
+		configureProgress(xhr, maybeProgress);
+
+		xhr.addEventListener('error', function() {
+			callback(_elm_lang$core$Native_Scheduler.fail({ ctor: 'NetworkError' }));
+		});
+		xhr.addEventListener('timeout', function() {
+			callback(_elm_lang$core$Native_Scheduler.fail({ ctor: 'Timeout' }));
+		});
+		xhr.addEventListener('load', function() {
+			callback(handleResponse(xhr, request.expect.responseToResult));
+		});
+
+		try
+		{
+			xhr.open(request.method, request.url, true);
+		}
+		catch (e)
+		{
+			return callback(_elm_lang$core$Native_Scheduler.fail({ ctor: 'BadUrl', _0: request.url }));
+		}
+
+		configureRequest(xhr, request);
+		send(xhr, request.body);
+
+		return function() { xhr.abort(); };
+	});
+}
+
+function configureProgress(xhr, maybeProgress)
+{
+	if (maybeProgress.ctor === 'Nothing')
+	{
+		return;
+	}
+
+	xhr.addEventListener('progress', function(event) {
+		if (!event.lengthComputable)
+		{
+			return;
+		}
+		_elm_lang$core$Native_Scheduler.rawSpawn(maybeProgress._0({
+			bytes: event.loaded,
+			bytesExpected: event.total
+		}));
+	});
+}
+
+function configureRequest(xhr, request)
+{
+	function setHeader(pair)
+	{
+		xhr.setRequestHeader(pair._0, pair._1);
+	}
+
+	A2(_elm_lang$core$List$map, setHeader, request.headers);
+	xhr.responseType = request.expect.responseType;
+	xhr.withCredentials = request.withCredentials;
+
+	if (request.timeout.ctor === 'Just')
+	{
+		xhr.timeout = request.timeout._0;
+	}
+}
+
+function send(xhr, body)
+{
+	switch (body.ctor)
+	{
+		case 'EmptyBody':
+			xhr.send();
+			return;
+
+		case 'StringBody':
+			xhr.setRequestHeader('Content-Type', body._0);
+			xhr.send(body._1);
+			return;
+
+		case 'FormDataBody':
+			xhr.send(body._0);
+			return;
+	}
+}
+
+
+// RESPONSES
+
+function handleResponse(xhr, responseToResult)
+{
+	var response = toResponse(xhr);
+
+	if (xhr.status < 200 || 300 <= xhr.status)
+	{
+		response.body = xhr.responseText;
+		return _elm_lang$core$Native_Scheduler.fail({
+			ctor: 'BadStatus',
+			_0: response
+		});
+	}
+
+	var result = responseToResult(response);
+
+	if (result.ctor === 'Ok')
+	{
+		return _elm_lang$core$Native_Scheduler.succeed(result._0);
+	}
+	else
+	{
+		response.body = xhr.responseText;
+		return _elm_lang$core$Native_Scheduler.fail({
+			ctor: 'BadPayload',
+			_0: result._0,
+			_1: response
+		});
+	}
+}
+
+function toResponse(xhr)
+{
+	return {
+		status: { code: xhr.status, message: xhr.statusText },
+		headers: parseHeaders(xhr.getAllResponseHeaders()),
+		url: xhr.responseURL,
+		body: xhr.response
+	};
+}
+
+function parseHeaders(rawHeaders)
+{
+	var headers = _elm_lang$core$Dict$empty;
+
+	if (!rawHeaders)
+	{
+		return headers;
+	}
+
+	var headerPairs = rawHeaders.split('\u000d\u000a');
+	for (var i = headerPairs.length; i--; )
+	{
+		var headerPair = headerPairs[i];
+		var index = headerPair.indexOf('\u003a\u0020');
+		if (index > 0)
+		{
+			var key = headerPair.substring(0, index);
+			var value = headerPair.substring(index + 2);
+
+			headers = A3(_elm_lang$core$Dict$update, key, function(oldValue) {
+				if (oldValue.ctor === 'Just')
+				{
+					return _elm_lang$core$Maybe$Just(value + ', ' + oldValue._0);
+				}
+				return _elm_lang$core$Maybe$Just(value);
+			}, headers);
+		}
+	}
+
+	return headers;
+}
+
+
+// EXPECTORS
+
+function expectStringResponse(responseToResult)
+{
+	return {
+		responseType: 'text',
+		responseToResult: responseToResult
+	};
+}
+
+function mapExpect(func, expect)
+{
+	return {
+		responseType: expect.responseType,
+		responseToResult: function(response) {
+			var convertedResponse = expect.responseToResult(response);
+			return A2(_elm_lang$core$Result$map, func, convertedResponse);
+		}
+	};
+}
+
+
+// BODY
+
+function multipart(parts)
+{
+	var formData = new FormData();
+
+	while (parts.ctor !== '[]')
+	{
+		var part = parts._0;
+		formData.append(part._0, part._1);
+		parts = parts._1;
+	}
+
+	return { ctor: 'FormDataBody', _0: formData };
+}
+
+return {
+	toTask: F2(toTask),
+	expectStringResponse: expectStringResponse,
+	mapExpect: F2(mapExpect),
+	multipart: multipart,
+	encodeUri: encodeUri,
+	decodeUri: decodeUri
+};
+
+}();
+
+var _elm_lang$http$Http_Internal$map = F2(
+	function (func, request) {
+		return _elm_lang$core$Native_Utils.update(
+			request,
+			{
+				expect: A2(_elm_lang$http$Native_Http.mapExpect, func, request.expect)
+			});
+	});
+var _elm_lang$http$Http_Internal$RawRequest = F7(
+	function (a, b, c, d, e, f, g) {
+		return {method: a, headers: b, url: c, body: d, expect: e, timeout: f, withCredentials: g};
+	});
+var _elm_lang$http$Http_Internal$Request = function (a) {
+	return {ctor: 'Request', _0: a};
+};
+var _elm_lang$http$Http_Internal$Expect = {ctor: 'Expect'};
+var _elm_lang$http$Http_Internal$FormDataBody = {ctor: 'FormDataBody'};
+var _elm_lang$http$Http_Internal$StringBody = F2(
+	function (a, b) {
+		return {ctor: 'StringBody', _0: a, _1: b};
+	});
+var _elm_lang$http$Http_Internal$EmptyBody = {ctor: 'EmptyBody'};
+var _elm_lang$http$Http_Internal$Header = F2(
+	function (a, b) {
+		return {ctor: 'Header', _0: a, _1: b};
+	});
+
+var _elm_lang$http$Http$decodeUri = _elm_lang$http$Native_Http.decodeUri;
+var _elm_lang$http$Http$encodeUri = _elm_lang$http$Native_Http.encodeUri;
+var _elm_lang$http$Http$expectStringResponse = _elm_lang$http$Native_Http.expectStringResponse;
+var _elm_lang$http$Http$expectJson = function (decoder) {
+	return _elm_lang$http$Http$expectStringResponse(
+		function (response) {
+			return A2(_elm_lang$core$Json_Decode$decodeString, decoder, response.body);
+		});
+};
+var _elm_lang$http$Http$expectString = _elm_lang$http$Http$expectStringResponse(
+	function (response) {
+		return _elm_lang$core$Result$Ok(response.body);
+	});
+var _elm_lang$http$Http$multipartBody = _elm_lang$http$Native_Http.multipart;
+var _elm_lang$http$Http$stringBody = _elm_lang$http$Http_Internal$StringBody;
+var _elm_lang$http$Http$jsonBody = function (value) {
+	return A2(
+		_elm_lang$http$Http_Internal$StringBody,
+		'application/json',
+		A2(_elm_lang$core$Json_Encode$encode, 0, value));
+};
+var _elm_lang$http$Http$emptyBody = _elm_lang$http$Http_Internal$EmptyBody;
+var _elm_lang$http$Http$header = _elm_lang$http$Http_Internal$Header;
+var _elm_lang$http$Http$request = _elm_lang$http$Http_Internal$Request;
+var _elm_lang$http$Http$post = F3(
+	function (url, body, decoder) {
+		return _elm_lang$http$Http$request(
+			{
+				method: 'POST',
+				headers: {ctor: '[]'},
+				url: url,
+				body: body,
+				expect: _elm_lang$http$Http$expectJson(decoder),
+				timeout: _elm_lang$core$Maybe$Nothing,
+				withCredentials: false
+			});
+	});
+var _elm_lang$http$Http$get = F2(
+	function (url, decoder) {
+		return _elm_lang$http$Http$request(
+			{
+				method: 'GET',
+				headers: {ctor: '[]'},
+				url: url,
+				body: _elm_lang$http$Http$emptyBody,
+				expect: _elm_lang$http$Http$expectJson(decoder),
+				timeout: _elm_lang$core$Maybe$Nothing,
+				withCredentials: false
+			});
+	});
+var _elm_lang$http$Http$getString = function (url) {
+	return _elm_lang$http$Http$request(
+		{
+			method: 'GET',
+			headers: {ctor: '[]'},
+			url: url,
+			body: _elm_lang$http$Http$emptyBody,
+			expect: _elm_lang$http$Http$expectString,
+			timeout: _elm_lang$core$Maybe$Nothing,
+			withCredentials: false
+		});
+};
+var _elm_lang$http$Http$toTask = function (_p0) {
+	var _p1 = _p0;
+	return A2(_elm_lang$http$Native_Http.toTask, _p1._0, _elm_lang$core$Maybe$Nothing);
+};
+var _elm_lang$http$Http$send = F2(
+	function (resultToMessage, request) {
+		return A2(
+			_elm_lang$core$Task$attempt,
+			resultToMessage,
+			_elm_lang$http$Http$toTask(request));
+	});
+var _elm_lang$http$Http$Response = F4(
+	function (a, b, c, d) {
+		return {url: a, status: b, headers: c, body: d};
+	});
+var _elm_lang$http$Http$BadPayload = F2(
+	function (a, b) {
+		return {ctor: 'BadPayload', _0: a, _1: b};
+	});
+var _elm_lang$http$Http$BadStatus = function (a) {
+	return {ctor: 'BadStatus', _0: a};
+};
+var _elm_lang$http$Http$NetworkError = {ctor: 'NetworkError'};
+var _elm_lang$http$Http$Timeout = {ctor: 'Timeout'};
+var _elm_lang$http$Http$BadUrl = function (a) {
+	return {ctor: 'BadUrl', _0: a};
+};
+var _elm_lang$http$Http$StringPart = F2(
+	function (a, b) {
+		return {ctor: 'StringPart', _0: a, _1: b};
+	});
+var _elm_lang$http$Http$stringPart = _elm_lang$http$Http$StringPart;
+
 var _user$project$Bot$interpolateProfile = F2(
 	function (profile, msg) {
 		return A3(
@@ -12801,6 +13162,12 @@ var _user$project$Bot$shouldWait = F2(
 		switch (_p3._1.ctor) {
 			case 'SendText':
 				return false;
+			case 'Ask':
+				if (_p3._0.ctor === 'Input') {
+					return false;
+				} else {
+					return true;
+				}
 			case 'SendOptions':
 				if (_p3._0.ctor === 'Input') {
 					return false;
@@ -12817,6 +13184,12 @@ var _user$project$Bot$shouldWait = F2(
 				return false;
 			case 'GoTo':
 				return false;
+			case 'Request':
+				if (_p3._0.ctor === 'HttpResponse') {
+					return false;
+				} else {
+					return true;
+				}
 			default:
 				return true;
 		}
@@ -12874,6 +13247,10 @@ var _user$project$Bot$Message = F2(
 	function (a, b) {
 		return {body: a, sentBy: b};
 	});
+var _user$project$Bot$RequestOptions = F3(
+	function (a, b, c) {
+		return {url: a, decoder: b, format: c};
+	});
 var _user$project$Bot$Recipe = function (a) {
 	return {action: a};
 };
@@ -12884,7 +13261,7 @@ var _user$project$Bot$Blueprint = F2(
 var _user$project$Bot$advanceSession = F3(
 	function (msg, recipe, session) {
 		var _p6 = {ctor: '_Tuple2', _0: msg, _1: recipe.action};
-		_v4_2:
+		_v4_3:
 		do {
 			switch (_p6._1.ctor) {
 				case 'SendOptions':
@@ -12898,7 +13275,24 @@ var _user$project$Bot$advanceSession = F3(
 									A2(_elm_lang$core$Dict$get, _p6._0._0, _p6._1._0))
 							});
 					} else {
-						break _v4_2;
+						break _v4_3;
+					}
+				case 'Ask':
+					if (_p6._0.ctor === 'Input') {
+						return _elm_lang$core$Native_Utils.update(
+							session,
+							{
+								blueprint: A2(
+									_user$project$Bot$Blueprint,
+									session.blueprint.id,
+									A2(
+										_elm_lang$core$Maybe$withDefault,
+										{ctor: '[]'},
+										_elm_lang$core$List$tail(session.blueprint.recipes))),
+								profile: A3(_elm_lang$core$Dict$insert, _p6._1._1, _p6._0._0, session.profile)
+							});
+					} else {
+						break _v4_3;
 					}
 				case 'GoTo':
 					return _elm_lang$core$Native_Utils.update(
@@ -12910,7 +13304,7 @@ var _user$project$Bot$advanceSession = F3(
 								A2(_user$project$Bot$searchBotById, _p6._1._0, session.rootBlueprint))
 						});
 				default:
-					break _v4_2;
+					break _v4_3;
 			}
 		} while(false);
 		return _elm_lang$core$Native_Utils.update(
@@ -12952,6 +13346,10 @@ var _user$project$Bot$updateInputState = F2(
 						inputState: _user$project$Bot$Options(
 							_elm_lang$core$Dict$keys(_p7._0))
 					});
+			case 'Ask':
+				return _elm_lang$core$Native_Utils.update(
+					session,
+					{inputState: _user$project$Bot$TextInput});
 			case 'Wait':
 				return _elm_lang$core$Native_Utils.update(
 					session,
@@ -12961,6 +13359,10 @@ var _user$project$Bot$updateInputState = F2(
 					session,
 					{inputState: _user$project$Bot$Blocked});
 			case 'GoTo':
+				return _elm_lang$core$Native_Utils.update(
+					session,
+					{inputState: _user$project$Bot$Blocked});
+			case 'Request':
 				return _elm_lang$core$Native_Utils.update(
 					session,
 					{inputState: _user$project$Bot$Blocked});
@@ -13012,6 +13414,12 @@ var _user$project$Bot$buildMessageFromRecipe = F2(
 						body: A2(_user$project$Bot$interpolateProfile, profile, _p9._0),
 						sentBy: _user$project$Bot$Bot
 					});
+			case 'Ask':
+				return _elm_lang$core$Maybe$Just(
+					{
+						body: A2(_user$project$Bot$interpolateProfile, profile, _p9._0),
+						sentBy: _user$project$Bot$Bot
+					});
 			case 'SendOptions':
 				return _elm_lang$core$Maybe$Nothing;
 			case 'Wait':
@@ -13020,25 +13428,35 @@ var _user$project$Bot$buildMessageFromRecipe = F2(
 				return _elm_lang$core$Maybe$Nothing;
 			case 'Label':
 				return _elm_lang$core$Maybe$Nothing;
+			case 'Request':
+				return _elm_lang$core$Maybe$Nothing;
 			default:
 				return _elm_lang$core$Maybe$Nothing;
 		}
 	});
+var _user$project$Bot$HttpResponse = function (a) {
+	return {ctor: 'HttpResponse', _0: a};
+};
 var _user$project$Bot$Input = function (a) {
 	return {ctor: 'Input', _0: a};
 };
 var _user$project$Bot$DoneWaiting = {ctor: 'DoneWaiting'};
 var _user$project$Bot$buildCmdForRecipe = function (recipe) {
 	var _p10 = recipe.action;
-	if (_p10.ctor === 'Wait') {
-		return A2(
-			_elm_lang$core$Task$perform,
-			function (_p11) {
-				return _user$project$Bot$DoneWaiting;
-			},
-			_elm_lang$core$Process$sleep(_p10._0));
-	} else {
-		return _elm_lang$core$Platform_Cmd$none;
+	switch (_p10.ctor) {
+		case 'Wait':
+			return A2(
+				_elm_lang$core$Task$perform,
+				function (_p11) {
+					return _user$project$Bot$DoneWaiting;
+				},
+				_elm_lang$core$Process$sleep(_p10._0));
+		case 'Request':
+			var _p12 = _p10._0;
+			var request = A2(_elm_lang$http$Http$get, _p12.url, _p12.decoder);
+			return A2(_elm_lang$http$Http$send, _user$project$Bot$HttpResponse, request);
+		default:
+			return _elm_lang$core$Platform_Cmd$none;
 	}
 };
 var _user$project$Bot$Run = {ctor: 'Run'};
@@ -13053,16 +13471,16 @@ var _user$project$Bot$update = F2(
 				_user$project$Bot$endRecipe,
 				_elm_lang$core$List$head(session.blueprint.recipes));
 			var message = function () {
-				var _p12 = msg;
-				if (_p12.ctor === 'Run') {
+				var _p13 = msg;
+				if (_p13.ctor === 'Run') {
 					return A2(_user$project$Bot$buildMessageFromRecipe, session.profile, recipe);
 				} else {
 					return _elm_lang$core$Maybe$Nothing;
 				}
 			}();
 			var nextMessages = function () {
-				var _p13 = message;
-				if (_p13.ctor === 'Nothing') {
+				var _p14 = message;
+				if (_p14.ctor === 'Nothing') {
 					return session.messages;
 				} else {
 					return A2(
@@ -13070,7 +13488,7 @@ var _user$project$Bot$update = F2(
 						session.messages,
 						{
 							ctor: '::',
-							_0: _p13._0,
+							_0: _p14._0,
 							_1: {ctor: '[]'}
 						});
 				}
@@ -13113,6 +13531,26 @@ var _user$project$Bot$end = function (blueprint) {
 				})
 		});
 };
+var _user$project$Bot$Request = function (a) {
+	return {ctor: 'Request', _0: a};
+};
+var _user$project$Bot$request = F2(
+	function (options, blueprint) {
+		return _elm_lang$core$Native_Utils.update(
+			blueprint,
+			{
+				recipes: A2(
+					_elm_lang$core$List$append,
+					blueprint.recipes,
+					{
+						ctor: '::',
+						_0: {
+							action: _user$project$Bot$Request(options)
+						},
+						_1: {ctor: '[]'}
+					})
+			});
+	});
 var _user$project$Bot$Wait = function (a) {
 	return {ctor: 'Wait', _0: a};
 };
@@ -13194,6 +13632,27 @@ var _user$project$Bot$goTo = F2(
 					})
 			});
 	});
+var _user$project$Bot$Ask = F2(
+	function (a, b) {
+		return {ctor: 'Ask', _0: a, _1: b};
+	});
+var _user$project$Bot$ask = F3(
+	function (msg, profile_key, blueprint) {
+		return _elm_lang$core$Native_Utils.update(
+			blueprint,
+			{
+				recipes: A2(
+					_elm_lang$core$List$append,
+					blueprint.recipes,
+					{
+						ctor: '::',
+						_0: {
+							action: A2(_user$project$Bot$Ask, msg, profile_key)
+						},
+						_1: {ctor: '[]'}
+					})
+			});
+	});
 var _user$project$Bot$SendText = function (a) {
 	return {ctor: 'SendText', _0: a};
 };
@@ -13214,6 +13673,104 @@ var _user$project$Bot$send = F2(
 					})
 			});
 	});
+
+var _user$project$BotBlueprint$catPictureChoice = _user$project$Bot$end(
+	_user$project$Bot$blueprint('cat_picture'));
+var _user$project$BotBlueprint$githubDecoder = A2(
+	_elm_lang$core$Json_Decode$at,
+	{
+		ctor: '::',
+		_0: 'foo',
+		_1: {
+			ctor: '::',
+			_0: 'bar',
+			_1: {ctor: '[]'}
+		}
+	},
+	_elm_lang$core$Json_Decode$string);
+var _user$project$BotBlueprint$searchGithubChoice = _user$project$Bot$end(
+	A2(
+		_user$project$Bot$request,
+		{
+			url: 'https://api.github.com/users/%github_username%/repos',
+			decoder: _user$project$BotBlueprint$githubDecoder,
+			format: function (repo) {
+				return A2(_elm_lang$core$Basics_ops['++'], 'The repo name is: ', repo);
+			}
+		},
+		A3(
+			_user$project$Bot$ask,
+			'Tell the me username to search a repo',
+			'github_username',
+			_user$project$Bot$blueprint('search_github'))));
+var _user$project$BotBlueprint$functionalChoice = _user$project$Bot$end(
+	A2(
+		_user$project$Bot$options,
+		{
+			ctor: '::',
+			_0: {ctor: '_Tuple2', _0: 'Search for a repo on github', _1: _user$project$BotBlueprint$searchGithubChoice},
+			_1: {
+				ctor: '::',
+				_0: {ctor: '_Tuple2', _0: 'Show a random picture of a cat', _1: _user$project$BotBlueprint$catPictureChoice},
+				_1: {ctor: '[]'}
+			}
+		},
+		A2(
+			_user$project$Bot$send,
+			'What do you want to do next?',
+			A2(
+				_user$project$Bot$wait,
+				1 * _elm_lang$core$Time$second,
+				A2(
+					_user$project$Bot$send,
+					'Immutability is great, isn\'t it?',
+					_user$project$Bot$blueprint('functionalChoice'))))));
+var _user$project$BotBlueprint$oopChoice = A2(
+	_user$project$Bot$goTo,
+	'choose_paradigm',
+	A2(
+		_user$project$Bot$wait,
+		2 * _elm_lang$core$Time$second,
+		A2(
+			_user$project$Bot$send,
+			'I\'m gonna go back to the previous options using the `goTo` function.',
+			A2(
+				_user$project$Bot$wait,
+				1 * _elm_lang$core$Time$second,
+				A2(
+					_user$project$Bot$send,
+					'That\'s a gret choice, but let\'s try again.',
+					_user$project$Bot$blueprint('oopChoice'))))));
+var _user$project$BotBlueprint$root = A2(
+	_user$project$Bot$options,
+	{
+		ctor: '::',
+		_0: {ctor: '_Tuple2', _0: 'Object Oriented', _1: _user$project$BotBlueprint$oopChoice},
+		_1: {
+			ctor: '::',
+			_0: {ctor: '_Tuple2', _0: 'Functional', _1: _user$project$BotBlueprint$functionalChoice},
+			_1: {ctor: '[]'}
+		}
+	},
+	A2(
+		_user$project$Bot$send,
+		'What paradigm do your prefer?',
+		A2(
+			_user$project$Bot$label,
+			'choose_paradigm',
+			A2(
+				_user$project$Bot$wait,
+				0 * _elm_lang$core$Time$second,
+				A2(
+					_user$project$Bot$send,
+					'Let\'s talk about programming. I\'m gonna show you two options using the `options` function.',
+					A2(
+						_user$project$Bot$wait,
+						0 * _elm_lang$core$Time$second,
+						A2(
+							_user$project$Bot$send,
+							'Hello, %name%, I hope you\'re doing fine.',
+							_user$project$Bot$blueprint('root'))))))));
 
 var _user$project$Main$onEnter = function (msg) {
 	var isEnter = function (code) {
@@ -13443,51 +14000,6 @@ var _user$project$Main$viewIdentificationLabel = F3(
 				}
 			});
 	});
-var _user$project$Main$functionalChoice = _user$project$Bot$end(
-	A2(
-		_user$project$Bot$send,
-		'Immutability is great, isn\'t it?',
-		_user$project$Bot$blueprint('functionalChoice')));
-var _user$project$Main$oopChoice = A2(
-	_user$project$Bot$goTo,
-	'choose_paradigm',
-	A2(
-		_user$project$Bot$wait,
-		1 * _elm_lang$core$Time$second,
-		A2(
-			_user$project$Bot$send,
-			'That\'s a gret choice, but let\'s try again.',
-			_user$project$Bot$blueprint('oopChoice'))));
-var _user$project$Main$root = A2(
-	_user$project$Bot$options,
-	{
-		ctor: '::',
-		_0: {ctor: '_Tuple2', _0: 'Object Oriented', _1: _user$project$Main$oopChoice},
-		_1: {
-			ctor: '::',
-			_0: {ctor: '_Tuple2', _0: 'Functional', _1: _user$project$Main$functionalChoice},
-			_1: {ctor: '[]'}
-		}
-	},
-	A2(
-		_user$project$Bot$send,
-		'What paradigm do your prefer?',
-		A2(
-			_user$project$Bot$label,
-			'choose_paradigm',
-			A2(
-				_user$project$Bot$wait,
-				0 * _elm_lang$core$Time$second,
-				A2(
-					_user$project$Bot$send,
-					'Let\'s talk about programming.',
-					A2(
-						_user$project$Bot$wait,
-						0 * _elm_lang$core$Time$second,
-						A2(
-							_user$project$Bot$send,
-							'Hello, %name%, I hope you\'re doing fine.',
-							_user$project$Bot$blueprint('root'))))))));
 var _user$project$Main$scroll = _elm_lang$core$Native_Platform.outgoingPort(
 	'scroll',
 	function (v) {
@@ -13502,17 +14014,17 @@ var _user$project$Main$AskForName = {ctor: 'AskForName'};
 var _user$project$Main$ChatPage = function (a) {
 	return {ctor: 'ChatPage', _0: a};
 };
-var _user$project$Main$IdentificationPage = function (a) {
-	return {ctor: 'IdentificationPage', _0: a};
-};
 var _user$project$Main$emptyModel = function (session) {
 	return {
 		name: '',
 		email: '',
-		currentPage: _user$project$Main$IdentificationPage(_user$project$Main$AskForName),
+		currentPage: _user$project$Main$ChatPage(session),
 		validationMessage: _elm_lang$core$Maybe$Nothing,
 		message: ''
 	};
+};
+var _user$project$Main$IdentificationPage = function (a) {
+	return {ctor: 'IdentificationPage', _0: a};
 };
 var _user$project$Main$BotMsg = function (a) {
 	return {ctor: 'BotMsg', _0: a};
@@ -13523,7 +14035,7 @@ var _user$project$Main$init = function (_p2) {
 		_user$project$Bot$Run,
 		A2(
 			_user$project$Bot$sessionWithProfile,
-			_user$project$Main$root,
+			_user$project$BotBlueprint$root,
 			{
 				ctor: '::',
 				_0: {ctor: '_Tuple2', _0: 'name', _1: 'Luiz Paulo'},
@@ -13571,7 +14083,7 @@ var _user$project$Main$buildBotSessionFromModel = function (model) {
 		_user$project$Bot$Run,
 		A2(
 			_user$project$Bot$sessionWithProfile,
-			_user$project$Main$root,
+			_user$project$BotBlueprint$root,
 			{
 				ctor: '::',
 				_0: {ctor: '_Tuple2', _0: 'name', _1: model.name},
@@ -14028,7 +14540,7 @@ var _user$project$Main$NoOp = {ctor: 'NoOp'};
 var Elm = {};
 Elm['Main'] = Elm['Main'] || {};
 if (typeof _user$project$Main$main !== 'undefined') {
-    _user$project$Main$main(Elm['Main'], 'Main', {"types":{"unions":{"Bot.Msg":{"args":[],"tags":{"Input":["String"],"Run":[],"DoneWaiting":[]}},"Main.Msg":{"args":[],"tags":{"AttemptToTransitionToChat":[],"SendMessage":[],"AttemptToTransitionToEmail":[],"SetName":["String"],"BotMsg":["Bot.Msg"],"NoOp":[],"SetEmail":["String"],"SetMessage":["String"]}}},"aliases":{},"message":"Main.Msg"},"versions":{"elm":"0.18.0"}});
+    _user$project$Main$main(Elm['Main'], 'Main', {"types":{"unions":{"Dict.LeafColor":{"args":[],"tags":{"LBBlack":[],"LBlack":[]}},"Dict.Dict":{"args":["k","v"],"tags":{"RBNode_elm_builtin":["Dict.NColor","k","v","Dict.Dict k v","Dict.Dict k v"],"RBEmpty_elm_builtin":["Dict.LeafColor"]}},"Bot.Msg":{"args":[],"tags":{"Input":["String"],"Run":[],"HttpResponse":["Result.Result Http.Error String"],"DoneWaiting":[]}},"Main.Msg":{"args":[],"tags":{"AttemptToTransitionToChat":[],"SendMessage":[],"AttemptToTransitionToEmail":[],"SetName":["String"],"BotMsg":["Bot.Msg"],"NoOp":[],"SetEmail":["String"],"SetMessage":["String"]}},"Dict.NColor":{"args":[],"tags":{"BBlack":[],"Red":[],"NBlack":[],"Black":[]}},"Http.Error":{"args":[],"tags":{"BadUrl":["String"],"NetworkError":[],"Timeout":[],"BadStatus":["Http.Response String"],"BadPayload":["String","Http.Response String"]}},"Result.Result":{"args":["error","value"],"tags":{"Ok":["value"],"Err":["error"]}}},"aliases":{"Http.Response":{"args":["body"],"type":"{ url : String , status : { code : Int, message : String } , headers : Dict.Dict String String , body : body }"}},"message":"Main.Msg"},"versions":{"elm":"0.18.0"}});
 }
 
 if (typeof define === "function" && define['amd'])

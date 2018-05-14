@@ -6,36 +6,7 @@ import Html.Events exposing (on, onClick, onInput, keyCode)
 import Json.Decode as Json
 import Time
 import Bot
-
-
-root : Bot.Blueprint
-root =
-    Bot.blueprint "root"
-        |> Bot.send "Hello, %name%, I hope you're doing fine."
-        |> Bot.wait (0 * Time.second)
-        |> Bot.send "Let's talk about programming."
-        |> Bot.wait (0 * Time.second)
-        |> Bot.label "choose_paradigm"
-        |> Bot.send "What paradigm do your prefer?"
-        |> Bot.options
-            [ ( "Object Oriented", oopChoice )
-            , ( "Functional", functionalChoice )
-            ]
-
-
-oopChoice : Bot.Blueprint
-oopChoice =
-    Bot.blueprint "oopChoice"
-        |> Bot.send "That's a gret choice, but let's try again."
-        |> Bot.wait (1 * Time.second)
-        |> Bot.goTo "choose_paradigm"
-
-
-functionalChoice : Bot.Blueprint
-functionalChoice =
-    Bot.blueprint "functionalChoice"
-        |> Bot.send "Immutability is great, isn't it?"
-        |> Bot.end
+import BotBlueprint
 
 
 type IdentificationStep
@@ -72,7 +43,7 @@ init : () -> ( Model, Cmd Msg )
 init _ =
     let
         ( session, cmd ) =
-            Bot.sessionWithProfile root [ ( "name", "Luiz Paulo" ), ( "email", "luiz@onaboutcode.com" ) ]
+            Bot.sessionWithProfile BotBlueprint.root [ ( "name", "Luiz Paulo" ), ( "email", "luiz@onaboutcode.com" ) ]
                 |> Bot.update Bot.Run
     in
         ( emptyModel session, Cmd.map BotMsg cmd )
@@ -82,7 +53,7 @@ emptyModel : Bot.Session -> Model
 emptyModel session =
     { name = ""
     , email = ""
-    , currentPage = IdentificationPage AskForName
+    , currentPage = ChatPage session
     , validationMessage = Nothing
     , message = ""
     }
@@ -162,7 +133,7 @@ buildBotSessionFromModel : Model -> ( Page, Cmd Msg )
 buildBotSessionFromModel model =
     let
         ( newSession, cmd ) =
-            Bot.sessionWithProfile root [ ( "name", model.name ), ( "email", model.email ) ]
+            Bot.sessionWithProfile BotBlueprint.root [ ( "name", model.name ), ( "email", model.email ) ]
                 |> Bot.update Bot.Run
     in
         ( ChatPage newSession, Cmd.map BotMsg cmd )

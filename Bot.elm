@@ -4,6 +4,8 @@ import Dict exposing (Dict)
 import Regex
 import Process
 import Task
+import Http
+import Json.Decode as Decode
 
 
 type alias Profile =
@@ -41,14 +43,24 @@ type Msg
     = Run
     | DoneWaiting
     | Input String
+    | HttpResponse (Result Http.Error String)
+
+
+type alias RequestOptions =
+    { url : String
+    , decoder : Decode.Decoder String
+    , format : String -> String
+    }
 
 
 type Action
     = SendText String
+    | Ask String String
     | GoTo String
     | SendOptions (Dict String Blueprint)
     | Label String
     | Wait Float
+    | Request RequestOptions
     | End
 
 
@@ -105,6 +117,9 @@ updateInputState recipe session =
         SendOptions options ->
             { session | inputState = Options (Dict.keys options) }
 
+        Ask _ _ ->
+            { session | inputState = TextInput }
+
         Wait _ ->
             { session | inputState = Blocked }
 
@@ -112,6 +127,9 @@ updateInputState recipe session =
             { session | inputState = Blocked }
 
         GoTo _ ->
+            { session | inputState = Blocked }
+
+        Request _ ->
             { session | inputState = Blocked }
 
         End ->
@@ -133,6 +151,12 @@ advanceSession msg recipe session =
     case ( msg, recipe.action ) of
         ( Input choice, SendOptions options ) ->
             { session | blueprint = Dict.get choice options |> Maybe.withDefault session.blueprint }
+
+        ( Input choice, Ask msg profileKey ) ->
+            { session
+                | blueprint = Blueprint session.blueprint.id (List.tail session.blueprint.recipes |> Maybe.withDefault [])
+                , profile = Dict.insert profileKey choice session.profile
+            }
 
         ( _, GoTo botId ) ->
             { session | blueprint = searchBotById botId session.rootBlueprint |> Maybe.withDefault session.rootBlueprint }
@@ -189,6 +213,12 @@ shouldWait msg recipe =
         ( _, SendText _ ) ->
             False
 
+        ( Input _, Ask _ _ ) ->
+            False
+
+        ( _, Ask _ _ ) ->
+            True
+
         ( Input choice, SendOptions opts ) ->
             False
 
@@ -207,6 +237,12 @@ shouldWait msg recipe =
         ( _, GoTo _ ) ->
             False
 
+        ( HttpResponse _, Request _ ) ->
+            False
+
+        ( _, Request _ ) ->
+            True
+
         ( _, End ) ->
             True
 
@@ -217,6 +253,13 @@ buildCmdForRecipe recipe =
         Wait amount ->
             Task.perform (\_ -> DoneWaiting) (Process.sleep amount)
 
+        Request options ->
+            let
+                request =
+                    Http.get options.url options.decoder
+            in
+                Http.send HttpResponse request
+
         _ ->
             Cmd.none
 
@@ -225,6 +268,12 @@ buildMessageFromRecipe : Profile -> Recipe -> Maybe Message
 buildMessageFromRecipe profile recipe =
     case recipe.action of
         SendText text ->
+            Just
+                { body = interpolateProfile profile text
+                , sentBy = Bot
+                }
+
+        Ask text _ ->
             Just
                 { body = interpolateProfile profile text
                 , sentBy = Bot
@@ -240,6 +289,9 @@ buildMessageFromRecipe profile recipe =
             Nothing
 
         Label _ ->
+            Nothing
+
+        Request _ ->
             Nothing
 
         End ->
@@ -276,6 +328,11 @@ send msg blueprint =
     { blueprint | recipes = List.append blueprint.recipes [ { action = SendText msg } ] }
 
 
+ask : String -> String -> Blueprint -> Blueprint
+ask msg profile_key blueprint =
+    { blueprint | recipes = List.append blueprint.recipes [ { action = Ask msg profile_key } ] }
+
+
 options : List ( String, Blueprint ) -> Blueprint -> Blueprint
 options options blueprint =
     { blueprint | recipes = List.append blueprint.recipes [ { action = SendOptions (Dict.fromList options) } ] }
@@ -304,3 +361,8 @@ end blueprint =
 endRecipe : Recipe
 endRecipe =
     { action = End }
+
+
+request : RequestOptions -> Blueprint -> Blueprint
+request options blueprint =
+    { blueprint | recipes = List.append blueprint.recipes [ { action = Request options } ] }
