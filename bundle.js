@@ -13674,6 +13674,51 @@ var _user$project$Bot$send = F2(
 			});
 	});
 
+var _user$project$Bot2$Tree = F3(
+	function (a, b, c) {
+		return {id: a, actions: b, formatter: c};
+	});
+var _user$project$Bot2$tree = F2(
+	function (id, formatter) {
+		return A3(
+			_user$project$Bot2$Tree,
+			id,
+			{ctor: '[]'},
+			formatter);
+	});
+var _user$project$Bot2$Request = function (a) {
+	return {ctor: 'Request', _0: a};
+};
+var _user$project$Bot2$Ask = F2(
+	function (a, b) {
+		return {ctor: 'Ask', _0: a, _1: b};
+	});
+var _user$project$Bot2$ask = F3(
+	function (question, key, tree) {
+		return _elm_lang$core$Native_Utils.update(
+			tree,
+			{
+				actions: A2(
+					_elm_lang$core$List$append,
+					tree.actions,
+					{
+						ctor: '::',
+						_0: A2(_user$project$Bot2$Ask, question, key),
+						_1: {ctor: '[]'}
+					})
+			});
+	});
+var _user$project$Bot2$RequestResult = function (a) {
+	return {ctor: 'RequestResult', _0: a};
+};
+var _user$project$Bot2$request = F4(
+	function (url, toMsg, decoder, tree) {
+		var req = A2(_elm_lang$http$Http$get, url, decoder);
+		var cmd = A2(_elm_lang$http$Http$send, _user$project$Bot2$RequestResult, req);
+		return tree;
+	});
+var _user$project$Bot2$WaitTimeout = {ctor: 'WaitTimeout'};
+
 var _user$project$BotBlueprint$catPictureChoice = _user$project$Bot$end(
 	_user$project$Bot$blueprint('cat_picture'));
 var _user$project$BotBlueprint$githubDecoder = A2(
@@ -13771,6 +13816,35 @@ var _user$project$BotBlueprint$root = A2(
 							_user$project$Bot$send,
 							'Hello, %name%, I hope you\'re doing fine.',
 							_user$project$Bot$blueprint('root'))))))));
+
+var _user$project$Main2$githubDecoder = A2(
+	_elm_lang$core$Json_Decode$at,
+	{
+		ctor: '::',
+		_0: 'example',
+		_1: {ctor: '[]'}
+	},
+	_elm_lang$core$Json_Decode$string);
+var _user$project$Main2$formatter = function (req) {
+	var _p0 = req;
+	return 'Hello world';
+};
+var _user$project$Main2$RandomCatRequest = function (a) {
+	return {ctor: 'RandomCatRequest', _0: a};
+};
+var _user$project$Main2$GithubRequest = function (a) {
+	return {ctor: 'GithubRequest', _0: a};
+};
+var _user$project$Main2$root = A4(
+	_user$project$Bot2$request,
+	'https://api.github.com/users/%github_username%/repos',
+	_user$project$Main2$GithubRequest,
+	_user$project$Main2$githubDecoder,
+	A3(
+		_user$project$Bot2$ask,
+		'Hello there. Tell me a github username.',
+		'github_username',
+		A2(_user$project$Bot2$tree, 'root', _user$project$Main2$formatter)));
 
 var _user$project$Main$onEnter = function (msg) {
 	var isEnter = function (code) {

@@ -1,11 +1,13 @@
 port module Main exposing (..)
 
+import Main2
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (on, onClick, onInput, keyCode)
 import Json.Decode as Json
 import Time
 import Bot
+import Bot2
 import BotBlueprint
 
 
